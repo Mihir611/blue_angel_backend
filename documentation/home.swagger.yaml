@@ -1,0 +1,356 @@
+openapi: 3.0.3
+info:
+  title: Mobile App Home Page API
+  description: |
+    API for fetching home page data including slider images and events.
+    This API requires authentication via JWT token.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@yourapp.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.yourapp.com/v1
+    description: Production server
+  - url: https://staging-api.yourapp.com/v1
+    description: Staging server
+  - url: http://localhost:3000/api/v1
+    description: Development server
+
+# Security Schemes
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login endpoint
+  
+  # Schemas/Models
+  schemas:
+    Event:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: Unique identifier for the event
+          example: "64a1b2c3d4e5f6789abcdef0"
+        title:
+          type: string
+          description: Title of the event
+          example: "Ride to Spiti Valley"
+        description:
+          type: string
+          description: Detailed description of the event
+          example: "Adventure bike ride to the beautiful Spiti Valley"
+        imageUrl:
+          type: string
+          format: uri
+          description: URL of the event image
+          example: "https://example.com/images/spiti.jpg"
+        eventDate:
+          type: string
+          format: date-time
+          description: Date and time of the event
+          example: "2025-07-15T08:00:00.000Z"
+        location:
+          type: object
+          properties:
+            city:
+              type: string
+              example: "Manali"
+            state:
+              type: string
+              example: "Himachal Pradesh"
+            country:
+              type: string
+              example: "India"
+          description: Location details of the event
+        category:
+          type: string
+          enum: [Adventure, Scenic, Cultural, Religious, Food, Sports, Entertainment]
+          description: Category of the event
+          example: "Adventure"
+        price:
+          type: number
+          description: Price of the event in rupees
+          example: 2500
+      required:
+        - _id
+        - title
+        - eventDate
+        - location
+        - category
+
+    Slider:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: Unique identifier for the slider
+          example: "64a1b2c3d4e5f6789abcdef1"
+        title:
+          type: string
+          description: Title of the slider
+          example: "Welcome Offer"
+        description:
+          type: string
+          description: Description of the slider content
+          example: "Get 50% off on your first ride"
+        imageUrl:
+          type: string
+          format: uri
+          description: URL of the slider image
+          example: "https://example.com/images/slider1.jpg"
+        link:
+          type: string
+          format: uri
+          description: Link URL when slider is clicked
+          example: "/offers"
+      required:
+        - _id
+        - title
+        - imageUrl
+
+    HomePageResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+          description: List of upcoming active events (max 10)
+        sliders:
+          type: array
+          items:
+            $ref: '#/components/schemas/Slider'
+          description: List of active slider images
+      required:
+        - events
+        - sliders
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message
+          example: "Internal server error"
+        error:
+          type: string
+          description: Detailed error information
+          example: "Failed to fetch events: Database connection failed"
+      required:
+        - message
+
+    UnauthorizedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Unauthorized access message
+          example: "Access denied. No token provided."
+
+    ForbiddenResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Invalid token message
+          example: "Invalid token."
+
+# Security applied globally
+security:
+  - BearerAuth: []
+
+# API Paths
+paths:
+  /home:
+    get:
+      tags:
+        - Home Page
+      summary: Get home page data
+      description: |
+        Retrieves home page data including:
+        - Up to 10 upcoming active events sorted by event date
+        - All active slider images sorted by display order
+        
+        **Authentication Required**: This endpoint requires a valid JWT token.
+      
+      security:
+        - BearerAuth: []
+      
+      responses:
+        '200':
+          description: Successfully retrieved home page data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomePageResponse'
+              examples:
+                success_response:
+                  summary: Successful response with events and sliders
+                  value:
+                    events:
+                      - _id: "64a1b2c3d4e5f6789abcdef0"
+                        title: "Ride to Spiti Valley"
+                        description: "Adventure bike ride to the beautiful Spiti Valley"
+                        imageUrl: "https://example.com/images/spiti.jpg"
+                        eventDate: "2025-07-15T08:00:00.000Z"
+                        location:
+                          city: "Manali"
+                          state: "Himachal Pradesh"
+                          country: "India"
+                        category: "Adventure"
+                        price: 2500
+                      - _id: "64a1b2c3d4e5f6789abcdef2"
+                        title: "Coastal Ride Experience"
+                        description: "Scenic coastal ride along the western ghats"
+                        imageUrl: "https://example.com/images/coastal.jpg"
+                        eventDate: "2025-06-20T06:00:00.000Z"
+                        location:
+                          city: "Udupi"
+                          state: "Karnataka"
+                          country: "India"
+                        category: "Scenic"
+                        price: 1200
+                    sliders:
+                      - _id: "64a1b2c3d4e5f6789abcdef3"
+                        title: "Welcome Offer"
+                        description: "Get 50% off on your first ride"
+                        imageUrl: "https://example.com/images/slider1.jpg"
+                        link: "/offers"
+                      - _id: "64a1b2c3d4e5f6789abcdef4"
+                        title: "New Routes Available"
+                        description: "Explore new destinations"
+                        imageUrl: "https://example.com/images/slider2.jpg"
+                        link: "/routes"
+                
+                empty_response:
+                  summary: Response when no data is available
+                  value:
+                    events: []
+                    sliders: []
+
+        '401':
+          description: Unauthorized - Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedResponse'
+              examples:
+                no_token:
+                  summary: No token provided
+                  value:
+                    message: "Access denied. No token provided."
+                
+                invalid_token:
+                  summary: Invalid token
+                  value:
+                    message: "Invalid token."
+
+        '403':
+          description: Forbidden - Token is valid but access is denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenResponse'
+              example:
+                message: "Access forbidden. Insufficient permissions."
+
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                database_error:
+                  summary: Database connection error
+                  value:
+                    message: "Internal server error"
+                    error: "Failed to fetch events: Database connection failed"
+                
+                general_error:
+                  summary: General server error
+                  value:
+                    message: "Internal server error"
+                    error: "Unexpected error occurred"
+
+# Tags for grouping endpoints
+tags:
+  - name: Home Page
+    description: Endpoints related to home page data retrieval
+
+# Additional API Information
+externalDocs:
+  description: Find more info about authentication
+  url: https://docs.yourapp.com/authentication
+
+# Example usage in different programming languages
+x-code-samples:
+  - lang: 'JavaScript'
+    source: |
+      // Using fetch API
+      const token = 'your-jwt-token-here';
+      
+      fetch('https://api.yourapp.com/v1/home', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Events:', data.events);
+        console.log('Sliders:', data.sliders);
+      })
+      .catch(error => console.error('Error:', error));
+
+  - lang: 'cURL'
+    source: |
+      curl -X GET "https://api.yourapp.com/v1/home" \
+           -H "Authorization: Bearer your-jwt-token-here" \
+           -H "Content-Type: application/json"
+
+  - lang: 'Python'
+    source: |
+      import requests
+      
+      url = "https://api.yourapp.com/v1/home"
+      headers = {
+          "Authorization": "Bearer your-jwt-token-here",
+          "Content-Type": "application/json"
+      }
+      
+      response = requests.get(url, headers=headers)
+      
+      if response.status_code == 200:
+          data = response.json()
+          print("Events:", data['events'])
+          print("Sliders:", data['sliders'])
+      else:
+          print("Error:", response.status_code, response.text)
+
+  - lang: 'Java'
+    source: |
+      // Using OkHttp
+      OkHttpClient client = new OkHttpClient();
+      
+      Request request = new Request.Builder()
+          .url("https://api.yourapp.com/v1/home")
+          .addHeader("Authorization", "Bearer your-jwt-token-here")
+          .addHeader("Content-Type", "application/json")
+          .build();
+      
+      try (Response response = client.newCall(request).execute()) {
+          if (response.isSuccessful()) {
+              String responseBody = response.body().string();
+              // Parse JSON response
+              System.out.println(responseBody);
+          }
+      }

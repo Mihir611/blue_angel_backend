@@ -19,6 +19,8 @@ const userSchema = new mongoose.Schema({
   bloodgroup: String,
   gender: { type: String, enum: ['Male', 'Female', 'Other'] },
   profession: String,
+  profilePictue: String,
+  userDeactivated: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.model('User', userSchema);

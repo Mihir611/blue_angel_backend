@@ -16,6 +16,7 @@ exports.updateProfile = async (req, res) => {
     bloodgroup: req.body.bloodgroup,
     gender: req.body.gender,
     profession: req.body.profession,
+    processedPicture: req.body.processedPicture,
   };
 
   try {

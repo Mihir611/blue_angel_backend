@@ -182,6 +182,7 @@ paths:
         '401':
           description: Unauthorized
 
+  /profile/update-user:
     put:
       summary: Update user profile
       security:
@@ -211,6 +212,9 @@ paths:
                   enum: [Male, Female, Other]
                 profession:
                   type: string
+                profilePicture:
+                  type: string
+                  format: uri
       responses:
         '200':
           description: Profile updated successfully
