@@ -1,0 +1,630 @@
+swagger: '3.0.0'
+info:
+  title: Travel Itinerary API
+  description: API for generating and managing travel itineraries
+  version: 1.0.0
+  contact:
+    name: Travel Itinerary API Support
+    email: support@travelapi.com
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://api.yourapp.com/api
+    description: Production server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    ItineraryRequest:
+      type: object
+      required:
+        - rideType
+        - rideSource
+        - rideDestination
+        - rideDuration
+        - email
+      properties:
+        rideType:
+          type: string
+          description: Mode of transportation
+          example: "car"
+          enum: ["car", "bike", "bus", "train", "flight"]
+        rideSource:
+          type: string
+          description: Starting location of the trip
+          example: "Mumbai"
+          minLength: 2
+          maxLength: 100
+        rideDestination:
+          type: string
+          description: Destination location of the trip
+          example: "Goa"
+          minLength: 2
+          maxLength: 100
+        rideDuration:
+          type: string
+          description: Duration of the trip in days
+          example: "3"
+          pattern: "^[1-9][0-9]*$"
+        locationPreference:
+          type: string
+          description: Comma-separated list of location preferences
+          example: "beaches, nightlife, adventure sports"
+          maxLength: 500
+        email:
+          type: string
+          format: email
+          description: Email of the user requesting the itinerary
+          example: "user@example.com"
+
+    ItineraryResponse:
+      type: object
+      properties:
+        responseId:
+          type: string
+          description: Unique identifier for the itinerary response
+          example: "60d5ec49f1b2c8a1234567890"
+        itinerary:
+          type: array
+          description: Generated itinerary details
+          items:
+            type: object
+            properties:
+              day:
+                type: integer
+                example: 1
+              activities:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    time:
+                      type: string
+                      example: "09:00 AM"
+                    activity:
+                      type: string
+                      example: "Visit Gateway of India"
+                    location:
+                      type: string
+                      example: "Mumbai"
+                    description:
+                      type: string
+                      example: "Historic monument and popular tourist attraction"
+        tokenUsed:
+          type: integer
+          description: Number of tokens used for generation
+          example: 1500
+        version:
+          type: integer
+          description: Version number of the itinerary
+          example: 1
+        model:
+          type: string
+          description: AI model used for generation
+          example: "gpt-4"
+        generatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when itinerary was generated
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when response was created
+
+    ItineraryRequestDetails:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Unique identifier for the itinerary request
+          example: "60d5ec49f1b2c8a1234567890"
+        rideType:
+          type: string
+          example: "car"
+        rideSource:
+          type: string
+          example: "Mumbai"
+        rideDestination:
+          type: string
+          example: "Goa"
+        rideDuration:
+          type: string
+          example: "3"
+        formattedDuration:
+          type: string
+          example: "3 days"
+        locationPreference:
+          type: string
+          example: "beaches, nightlife"
+        requestedBy:
+          type: string
+          format: email
+          example: "user@example.com"
+        status:
+          type: string
+          enum: ["processing", "completed", "failed"]
+          example: "completed"
+        generatedCount:
+          type: integer
+          description: Number of itineraries generated for this request
+          example: 2
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        weather:
+          type: object
+          nullable: true
+          description: Weather information for the trip
+          properties:
+            source:
+              type: object
+              properties:
+                location:
+                  type: string
+                  example: "Mumbai"
+                temperature:
+                  type: string
+                  example: "28°C"
+                condition:
+                  type: string
+                  example: "Partly Cloudy"
+            destination:
+              type: object
+              properties:
+                location:
+                  type: string
+                  example: "Goa"
+                temperature:
+                  type: string
+                  example: "32°C"
+                condition:
+                  type: string
+                  example: "Sunny"
+        itineraries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryResponse'
+
+    StatusResponse:
+      type: object
+      properties:
+        responseId:
+          type: string
+          example: "60d5ec49f1b2c8a1234567890"
+        status:
+          type: string
+          enum: ["processing", "completed", "failed"]
+          example: "completed"
+        hasItinerary:
+          type: boolean
+          description: Whether the response has generated itinerary
+          example: true
+        errorMessage:
+          type: string
+          nullable: true
+          description: Error message if generation failed
+        createdAt:
+          type: string
+          format: date-time
+        generatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Failed to request itinerary"
+        message:
+          type: string
+          description: Detailed error message
+          example: "Itinerary request not found"
+
+security:
+  - BearerAuth: []
+
+paths:
+  /itinerary/generateItinerary:
+    post:
+      tags:
+        - Itinerary Management
+      summary: Generate a new travel itinerary
+      description: Creates a new itinerary request and starts the generation process using AI
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItineraryRequest'
+            examples:
+              weekend_trip:
+                summary: Weekend trip example
+                value:
+                  rideType: "car"
+                  rideSource: "Mumbai"
+                  rideDestination: "Lonavala"
+                  rideDuration: "2"
+                  locationPreference: "mountains, waterfalls, scenic routes"
+                  email: "user@example.com"
+              beach_vacation:
+                summary: Beach vacation example
+                value:
+                  rideType: "flight"
+                  rideSource: "Delhi"
+                  rideDestination: "Goa"
+                  rideDuration: "5"
+                  locationPreference: "beaches, nightlife, water sports"
+                  email: "user@example.com"
+      responses:
+        '200':
+          description: Itinerary request submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Itinerary request submitted successfully"
+                  requestId:
+                    type: string
+                    example: "60d5ec49f1b2c8a1234567890"
+                  responseId:
+                    type: string
+                    example: "60d5ec49f1b2c8a1234567891"
+                  estimatedTime:
+                    type: string
+                    example: "2-3 minutes"
+        '400':
+          description: Bad request - Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /itinerary/getItinerary:
+    get:
+      tags:
+        - Itinerary Management
+      summary: Get user's itineraries
+      description: Retrieves all itineraries for a specific request ID with weather information
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: requestId
+          required: true
+          schema:
+            type: string
+          description: The ID of the itinerary request
+          example: "60d5ec49f1b2c8a1234567890"
+      responses:
+        '200':
+          description: Itineraries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ItineraryRequestDetails'
+        '404':
+          description: No itineraries found for this request ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "No itineraries found for this user"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /itinerary/getAllItineraries:
+    get:
+      tags:
+        - Admin
+      summary: Get all itineraries (Admin only)
+      description: Retrieves all completed itineraries from all users. Typically used for admin purposes.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All itineraries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ItineraryRequestDetails'
+        '404':
+          description: No itineraries found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "No itineraries found"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /itinerary/status/{requestId}:
+    get:
+      tags:
+        - Itinerary Status
+      summary: Get status of a specific itinerary request
+      description: Retrieves the current status and progress of an itinerary generation request
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema:
+            type: string
+          description: The ID of the itinerary request
+          example: "60d5ec49f1b2c8a1234567890"
+      responses:
+        '200':
+          description: Itinerary status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId:
+                    type: string
+                    example: "60d5ec49f1b2c8a1234567890"
+                  overallStatus:
+                    type: string
+                    enum: ["processing", "completed", "failed"]
+                    example: "completed"
+                  generatedCount:
+                    type: integer
+                    description: Number of itineraries generated for this request
+                    example: 2
+                  responses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StatusResponse'
+        '404':
+          description: Itinerary request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Itinerary request not found"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /itinerary/generateAdditional/{requestId}:
+    post:
+      tags:
+        - Itinerary Management
+      summary: Generate additional itinerary for existing request
+      description: Creates an additional itinerary variation for an existing request
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema:
+            type: string
+          description: The ID of the existing itinerary request
+          example: "60d5ec49f1b2c8a1234567890"
+      responses:
+        '200':
+          description: Additional itinerary generation started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Additional itinerary generation started"
+                  requestId:
+                    type: string
+                    example: "60d5ec49f1b2c8a1234567890"
+                  responseId:
+                    type: string
+                    example: "60d5ec49f1b2c8a1234567892"
+                  version:
+                    type: integer
+                    description: Version number of the new itinerary
+                    example: 2
+        '404':
+          description: Itinerary request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Itinerary request not found"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /itinerary/response/{responseId}:
+    get:
+      tags:
+        - Itinerary Details
+      summary: Get specific itinerary response details
+      description: Retrieves detailed information about a specific itinerary response
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: responseId
+          required: true
+          schema:
+            type: string
+          description: The ID of the itinerary response
+          example: "60d5ec49f1b2c8a1234567891"
+      responses:
+        '200':
+          description: Specific itinerary response retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  responseId:
+                    type: string
+                    example: "60d5ec49f1b2c8a1234567891"
+                  requestDetails:
+                    type: object
+                    properties:
+                      requestId:
+                        type: string
+                        example: "60d5ec49f1b2c8a1234567890"
+                      rideType:
+                        type: string
+                        example: "car"
+                      rideSource:
+                        type: string
+                        example: "Mumbai"
+                      rideDestination:
+                        type: string
+                        example: "Goa"
+                      rideDuration:
+                        type: string
+                        example: "3"
+                      locationPreference:
+                        type: string
+                        example: "beaches, nightlife"
+                      requestedBy:
+                        type: string
+                        format: email
+                        example: "user@example.com"
+                  status:
+                    type: string
+                    enum: ["processing", "completed", "failed"]
+                    example: "completed"
+                  itinerary:
+                    type: array
+                    description: The generated itinerary
+                    items:
+                      type: object
+                  tokenUsage:
+                    type: integer
+                    example: 1500
+                  version:
+                    type: integer
+                    example: 1
+                  model:
+                    type: string
+                    example: "gpt-4"
+                  errorMessage:
+                    type: string
+                    nullable: true
+                    description: Error message if generation failed
+                  generatedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  createdAt:
+                    type: string
+                    format: date-time
+        '404':
+          description: Itinerary response not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Itinerary response not found"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Itinerary Management
+    description: Operations for creating and retrieving travel itineraries
+  - name: Itinerary Status
+    description: Operations for checking itinerary generation status
+  - name: Itinerary Details
+    description: Operations for retrieving detailed itinerary information
+  - name: Admin
+    description: Administrative operations (admin access required)

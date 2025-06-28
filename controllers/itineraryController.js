@@ -1,5 +1,6 @@
 const { ItineraryRequest, ItineraryResponse } = require('../models/Itinerary');
 const { generateMultipleTravelItinerariesSeparate } = require('../utils/gpthelper');
+const getWeatherUpdates = require('../utils/weatherUpdates');
 
 //#region Helper functions
 const generateItineraryAsyc = async (responseId, travelData) => {
@@ -111,38 +112,68 @@ exports.generateItinerary = async(req, res) => {
 
 
 exports.getItinerary = async(req, res) => {
-    const email = req.query.email;
+    const itineraryId = req.query.requestId;
     try {
-        const itineraries = await ItineraryRequest.findUserRequestsWithItineraries(email);
+        // Now try to populate - let's be more explicit about the field name
+        const itineraries = await ItineraryRequest.find({ _id: itineraryId })
+            .populate({
+                path: 'itineraryResponses',
+                model: 'ItineraryResponse' // Explicitly specify the model
+            });
 
         if (!itineraries || itineraries.length === 0) {
             return res.status(404).json({message: "No itineraries found for this user"});
         }
-        // Format the response to include all completed itineraries
-        const formattedItineraries = itineraries.map(request => ({
-            requestId: request._id,
-            rideType: request.rideType,
-            rideSource: request.rideSource,
-            rideDestination: request.rideDestination,
-            rideDuration: request.rideDuration,
-            formattedDuration: request.formattedDuration,
-            locationPreference: request.locationPreference,
-            requestedBy: request.requestedBy,
-            status: request.status,
-            generatedCount: request.generatedCount,
-            createdAt: request.createdAt,
-            updatedAt: request.updatedAt,
-            itineraries: request.itineraryResponses.map(response => ({
-                responseId: response._id,
-                itinerary: response.generatedItinerary,
-                tokenUsed: response.tokenUsed,
-                version: response.version,
-                model: response.model,
-                generatedAt: response.generatedAt,
-                createdAt: response.createdAt
-            }))
-        }));
 
+        // Format the response to include all completed itineraries
+        const formattedItineraries = await Promise.all(
+            itineraries.map(async (request) => {
+                let weatherData = null;
+                try {
+                    weatherData = await getWeatherUpdates(request.rideSource, request.rideDestination);
+                } catch (error) {
+                    console.warn(`Failed to fetch weather for ${request.rideSource} to ${request.rideDestination}:`, error.message);
+                }
+
+                // Remove duplicate responses based on responseId
+                const seenResponseIds = new Set();
+                const uniqueItineraries = request.itineraryResponses
+                    .filter(response => {
+                        const responseId = response._id.toString();
+                        if (seenResponseIds.has(responseId)) {
+                            return false; // Skip duplicate
+                        }
+                        seenResponseIds.add(responseId);
+                        return true; // Keep unique
+                    })
+                    .map(response => ({
+                        responseId: response._id,
+                        itinerary: response.generatedItinerary,
+                        tokenUsed: response.tokenUsed,
+                        version: response.version,
+                        model: response.model,
+                        generatedAt: response.generatedAt,
+                        createdAt: response.createdAt
+                    }));
+
+                return {
+                    requestId: request._id,
+                    rideType: request.rideType,
+                    rideSource: request.rideSource,
+                    rideDestination: request.rideDestination,
+                    rideDuration: request.rideDuration,
+                    formattedDuration: request.formattedDuration,
+                    locationPreference: request.locationPreference,
+                    requestedBy: request.requestedBy,
+                    status: request.status,
+                    generatedCount: request.generatedCount,
+                    createdAt: request.createdAt,
+                    updatedAt: request.updatedAt,
+                    weather: weatherData, // Add weather data here
+                    itineraries: uniqueItineraries
+                }
+            })
+        );
 
         res.status(200).json(formattedItineraries);
     } catch(err) {

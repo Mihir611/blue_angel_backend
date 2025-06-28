@@ -1,35 +1,194 @@
-openapi: 3.0.3
-info:
-  title: Mobile App Home Page API
-  description: |
-    API for fetching home page data including slider images and events.
-    This API requires authentication via JWT token.
-  version: 1.0.0
-  contact:
-    name: API Support
-    email: support@yourapp.com
-  license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
+paths:
+  /:
+    get:
+      tags:
+        - Home
+      summary: Get home page data
+      description: Retrieves active events and sliders for the home page. Returns up to 10 upcoming events sorted by date and all active sliders sorted by display order.
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Successfully retrieved home page data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  sliders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Slider'
+              example:
+                events:
+                  - _id: "64a7b8c9d1234567890abcde"
+                    title: "Tech Conference 2024"
+                    description: "Annual technology conference"
+                    imageUrl: "https://example.com/tech-conf.jpg"
+                    eventDate: "2024-07-15T00:00:00.000Z"
+                    location:
+                      city: "San Francisco"
+                      state: "CA"
+                      country: "USA"
+                    category: "Technology"
+                    price: 299
+                sliders:
+                  - _id: "64a7b8c9d1234567890abcdf"
+                    title: "Welcome Banner"
+                    description: "Main welcome message"
+                    imageUrl: "https://example.com/banner.jpg"
+                    link: "https://example.com/welcome"
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
 
-servers:
-  - url: https://api.yourapp.com/v1
-    description: Production server
-  - url: https://staging-api.yourapp.com/v1
-    description: Staging server
-  - url: http://localhost:3000/api/v1
-    description: Development server
+  /createEvents:
+    post:
+      tags:
+        - Events
+      summary: Create a new event
+      description: Creates a new event with the provided details. Event date must be today or in the future.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventsData
+              properties:
+                eventsData:
+                  $ref: '#/components/schemas/CreateEventRequest'
+            example:
+              eventsData:
+                title: "Summer Music Festival"
+                description: "A three-day outdoor music festival featuring local and international artists"
+                imageUrl: "https://example.com/festival.jpg"
+                eventDate: "2024-08-15"
+                city: "Austin"
+                state: "Texas"
+                country: "USA"
+                category: "Music"
+                price: 150
+                email: "contact@musicfest.com"
+                phone: "+1-555-0123"
+                tags: ["music", "festival", "outdoor"]
+                isActive: true
+      responses:
+        201:
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Event created successfully"
+                  data:
+                    $ref: '#/components/schemas/CreateEventRequest'
+        400:
+          description: Bad request - validation failed or past date
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationError'
+                  - $ref: '#/components/schemas/PastDateError'
+                  - $ref: '#/components/schemas/InvalidDateFormatError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        409:
+          description: Conflict - event already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
 
-# Security Schemes
+  /createSliders:
+    post:
+      tags:
+        - Sliders
+      summary: Create a new slider
+      description: Creates a new slider for the home page carousel. Title and image URL are required fields.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sliderData
+              properties:
+                sliderData:
+                  $ref: '#/components/schemas/CreateSliderRequest'
+            example:
+              sliderData:
+                title: "New Product Launch"
+                description: "Discover our latest innovation"
+                imageUrl: "https://example.com/product-banner.jpg"
+                link: "https://example.com/products/new"
+                displayOrder: 1
+                isActive: true
+      responses:
+        201:
+          description: Slider created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Slider created successfully"
+                  data:
+                    $ref: '#/components/schemas/Slider'
+        400:
+          description: Bad request - validation failed or missing required fields
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationError'
+                  - $ref: '#/components/schemas/MissingSliderDataError'
+                  - $ref: '#/components/schemas/MissingRequiredFieldsError'
+                  - $ref: '#/components/schemas/CastError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        409:
+          description: Conflict - slider already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   securitySchemes:
-    BearerAuth:
+    bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT token obtained from login endpoint
-  
-  # Schemas/Models
+      description: JWT token required for authentication
+
   schemas:
     Event:
       type: object
@@ -37,53 +196,35 @@ components:
         _id:
           type: string
           description: Unique identifier for the event
-          example: "64a1b2c3d4e5f6789abcdef0"
         title:
           type: string
-          description: Title of the event
-          example: "Ride to Spiti Valley"
+          description: Event title
         description:
           type: string
-          description: Detailed description of the event
-          example: "Adventure bike ride to the beautiful Spiti Valley"
+          description: Event description
         imageUrl:
           type: string
           format: uri
-          description: URL of the event image
-          example: "https://example.com/images/spiti.jpg"
+          description: URL to event image
         eventDate:
           type: string
           format: date-time
           description: Date and time of the event
-          example: "2025-07-15T08:00:00.000Z"
         location:
           type: object
           properties:
             city:
               type: string
-              example: "Manali"
             state:
               type: string
-              example: "Himachal Pradesh"
             country:
               type: string
-              example: "India"
-          description: Location details of the event
         category:
           type: string
-          enum: [Adventure, Scenic, Cultural, Religious, Food, Sports, Entertainment]
-          description: Category of the event
-          example: "Adventure"
+          description: Event category
         price:
           type: number
-          description: Price of the event in rupees
-          example: 2500
-      required:
-        - _id
-        - title
-        - eventDate
-        - location
-        - category
+          description: Event price
 
     Slider:
       type: object
@@ -91,266 +232,221 @@ components:
         _id:
           type: string
           description: Unique identifier for the slider
-          example: "64a1b2c3d4e5f6789abcdef1"
         title:
           type: string
-          description: Title of the slider
-          example: "Welcome Offer"
+          description: Slider title
         description:
           type: string
-          description: Description of the slider content
-          example: "Get 50% off on your first ride"
+          description: Slider description
         imageUrl:
           type: string
           format: uri
-          description: URL of the slider image
-          example: "https://example.com/images/slider1.jpg"
+          description: URL to slider image
         link:
           type: string
           format: uri
-          description: Link URL when slider is clicked
-          example: "/offers"
+          description: URL that slider links to
+
+    CreateEventRequest:
+      type: object
       required:
-        - _id
+        - title
+        - description
+        - imageUrl
+        - eventDate
+        - city
+        - state
+        - country
+        - category
+        - price
+        - email
+        - phone
+      properties:
+        title:
+          type: string
+          description: Event title
+          minLength: 1
+        description:
+          type: string
+          description: Event description
+          minLength: 1
+        imageUrl:
+          type: string
+          format: uri
+          description: URL to event image
+        eventDate:
+          type: string
+          format: date
+          description: Event date (YYYY-MM-DD format)
+        city:
+          type: string
+          description: City where event takes place
+        state:
+          type: string
+          description: State where event takes place
+        country:
+          type: string
+          description: Country where event takes place
+        category:
+          type: string
+          description: Event category
+        price:
+          type: number
+          minimum: 0
+          description: Event price
+        email:
+          type: string
+          format: email
+          description: Contact email for the event
+        phone:
+          type: string
+          description: Contact phone number for the event
+        tags:
+          type: array
+          items:
+            type: string
+          description: Array of tags for the event
+        isActive:
+          type: boolean
+          description: Whether the event is active
+          default: true
+
+    CreateSliderRequest:
+      type: object
+      required:
         - title
         - imageUrl
+      properties:
+        title:
+          type: string
+          description: Slider title
+          minLength: 1
+        description:
+          type: string
+          description: Slider description
+        imageUrl:
+          type: string
+          format: uri
+          description: URL to slider image
+        link:
+          type: string
+          format: uri
+          description: URL that slider links to
+        displayOrder:
+          type: number
+          description: Display order for the slider
+          default: 0
+        isActive:
+          type: boolean
+          description: Whether the slider is active
+          default: true
 
-    HomePageResponse:
+    ValidationError:
       type: object
       properties:
-        events:
-          type: array
-          items:
-            $ref: '#/components/schemas/Event'
-          description: List of upcoming active events (max 10)
-        sliders:
-          type: array
-          items:
-            $ref: '#/components/schemas/Slider'
-          description: List of active slider images
-      required:
-        - events
-        - sliders
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Validation failed"
+        errors:
+          type: object
+          description: Field-specific validation errors
+          additionalProperties:
+            type: string
+
+    PastDateError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Cannot create event for past dates. Event date must be today or in the future."
+
+    InvalidDateFormatError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Invalid date format for event date"
+
+    ConflictError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Event with this information already exists"
+
+    MissingSliderDataError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Slider data is required"
+
+    MissingRequiredFieldsError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Title and image URL are required fields"
+
+    CastError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Invalid data type for field: displayOrder"
 
     ErrorResponse:
       type: object
       properties:
+        success:
+          type: boolean
+          example: false
         message:
           type: string
           description: Error message
-          example: "Internal server error"
-        error:
-          type: string
-          description: Detailed error information
-          example: "Failed to fetch events: Database connection failed"
-      required:
-        - message
 
-    UnauthorizedResponse:
-      type: object
-      properties:
-        message:
-          type: string
-          description: Unauthorized access message
-          example: "Access denied. No token provided."
+  responses:
+    UnauthorizedError:
+      description: Authentication token is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Unauthorized access"
 
-    ForbiddenResponse:
-      type: object
-      properties:
-        message:
-          type: string
-          description: Invalid token message
-          example: "Invalid token."
-
-# Security applied globally
-security:
-  - BearerAuth: []
-
-# API Paths
-paths:
-  /home:
-    get:
-      tags:
-        - Home Page
-      summary: Get home page data
-      description: |
-        Retrieves home page data including:
-        - Up to 10 upcoming active events sorted by event date
-        - All active slider images sorted by display order
-        
-        **Authentication Required**: This endpoint requires a valid JWT token.
-      
-      security:
-        - BearerAuth: []
-      
-      responses:
-        '200':
-          description: Successfully retrieved home page data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HomePageResponse'
-              examples:
-                success_response:
-                  summary: Successful response with events and sliders
-                  value:
-                    events:
-                      - _id: "64a1b2c3d4e5f6789abcdef0"
-                        title: "Ride to Spiti Valley"
-                        description: "Adventure bike ride to the beautiful Spiti Valley"
-                        imageUrl: "https://example.com/images/spiti.jpg"
-                        eventDate: "2025-07-15T08:00:00.000Z"
-                        location:
-                          city: "Manali"
-                          state: "Himachal Pradesh"
-                          country: "India"
-                        category: "Adventure"
-                        price: 2500
-                      - _id: "64a1b2c3d4e5f6789abcdef2"
-                        title: "Coastal Ride Experience"
-                        description: "Scenic coastal ride along the western ghats"
-                        imageUrl: "https://example.com/images/coastal.jpg"
-                        eventDate: "2025-06-20T06:00:00.000Z"
-                        location:
-                          city: "Udupi"
-                          state: "Karnataka"
-                          country: "India"
-                        category: "Scenic"
-                        price: 1200
-                    sliders:
-                      - _id: "64a1b2c3d4e5f6789abcdef3"
-                        title: "Welcome Offer"
-                        description: "Get 50% off on your first ride"
-                        imageUrl: "https://example.com/images/slider1.jpg"
-                        link: "/offers"
-                      - _id: "64a1b2c3d4e5f6789abcdef4"
-                        title: "New Routes Available"
-                        description: "Explore new destinations"
-                        imageUrl: "https://example.com/images/slider2.jpg"
-                        link: "/routes"
-                
-                empty_response:
-                  summary: Response when no data is available
-                  value:
-                    events: []
-                    sliders: []
-
-        '401':
-          description: Unauthorized - Missing or invalid authentication token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UnauthorizedResponse'
-              examples:
-                no_token:
-                  summary: No token provided
-                  value:
-                    message: "Access denied. No token provided."
-                
-                invalid_token:
-                  summary: Invalid token
-                  value:
-                    message: "Invalid token."
-
-        '403':
-          description: Forbidden - Token is valid but access is denied
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ForbiddenResponse'
-              example:
-                message: "Access forbidden. Insufficient permissions."
-
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                database_error:
-                  summary: Database connection error
-                  value:
-                    message: "Internal server error"
-                    error: "Failed to fetch events: Database connection failed"
-                
-                general_error:
-                  summary: General server error
-                  value:
-                    message: "Internal server error"
-                    error: "Unexpected error occurred"
-
-# Tags for grouping endpoints
-tags:
-  - name: Home Page
-    description: Endpoints related to home page data retrieval
-
-# Additional API Information
-externalDocs:
-  description: Find more info about authentication
-  url: https://docs.yourapp.com/authentication
-
-# Example usage in different programming languages
-x-code-samples:
-  - lang: 'JavaScript'
-    source: |
-      // Using fetch API
-      const token = 'your-jwt-token-here';
-      
-      fetch('https://api.yourapp.com/v1/home', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Events:', data.events);
-        console.log('Sliders:', data.sliders);
-      })
-      .catch(error => console.error('Error:', error));
-
-  - lang: 'cURL'
-    source: |
-      curl -X GET "https://api.yourapp.com/v1/home" \
-           -H "Authorization: Bearer your-jwt-token-here" \
-           -H "Content-Type: application/json"
-
-  - lang: 'Python'
-    source: |
-      import requests
-      
-      url = "https://api.yourapp.com/v1/home"
-      headers = {
-          "Authorization": "Bearer your-jwt-token-here",
-          "Content-Type": "application/json"
-      }
-      
-      response = requests.get(url, headers=headers)
-      
-      if response.status_code == 200:
-          data = response.json()
-          print("Events:", data['events'])
-          print("Sliders:", data['sliders'])
-      else:
-          print("Error:", response.status_code, response.text)
-
-  - lang: 'Java'
-    source: |
-      // Using OkHttp
-      OkHttpClient client = new OkHttpClient();
-      
-      Request request = new Request.Builder()
-          .url("https://api.yourapp.com/v1/home")
-          .addHeader("Authorization", "Bearer your-jwt-token-here")
-          .addHeader("Content-Type", "application/json")
-          .build();
-      
-      try (Response response = client.newCall(request).execute()) {
-          if (response.isSuccessful()) {
-              String responseBody = response.body().string();
-              // Parse JSON response
-              System.out.println(responseBody);
-          }
-      }
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Internal server error"
+              error:
+                type: string
+                description: Error details

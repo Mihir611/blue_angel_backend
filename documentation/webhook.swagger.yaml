@@ -1,0 +1,549 @@
+paths:
+  /webhook/subscribe:
+    post:
+      summary: Subscribe to webhook notifications
+      description: |
+        Register a mobile application to receive webhook notifications.
+        Each subscription is tied to a specific user and device.
+      tags:
+        - Subscription Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionRequest'
+            examples:
+              basic_subscription:
+                summary: Basic subscription
+                value:
+                  webhookUrl: "https://your-mobile-app.com/webhook"
+                  userId: "user123"
+                  deviceId: "device456"
+                  appVersion: "1.2.0"
+                  notificationTypes: ["all"]
+              filtered_subscription:
+                summary: Filtered subscription
+                value:
+                  webhookUrl: "https://your-mobile-app.com/webhook"
+                  userId: "user123"
+                  deviceId: "device456"
+                  appVersion: "1.2.0"
+                  notificationTypes: ["itinerary", "profile"]
+      responses:
+        '201':
+          description: Subscription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+              example:
+                success: true
+                subscriptionId: "550e8400-e29b-41d4-a716-446655440000"
+                message: "Successfully subscribed for webhook notifications"
+                subscription:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  userId: "user123"
+                  subscribedAt: "2024-01-15T10:30:00.000Z"
+                  notificationTypes: ["itinerary", "profile"]
+        '400':
+          description: Bad request - Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_url:
+                  summary: Invalid webhook URL
+                  value:
+                    success: false
+                    error: "Invalid or missing webhook URL"
+                missing_user:
+                  summary: Missing user ID
+                  value:
+                    success: false
+                    error: "User ID is required"
+
+  /webhook/unsubscribe/{subscriptionId}:
+    delete:
+      summary: Unsubscribe from webhook notifications
+      description: Remove a webhook subscription using the subscription ID
+      tags:
+        - Subscription Management
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The unique subscription identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Successfully unsubscribed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  subscriptionId:
+                    type: string
+              example:
+                success: true
+                message: "Successfully unsubscribed from webhook notifications"
+                subscriptionId: "550e8400-e29b-41d4-a716-446655440000"
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webhook/notify/{subscriptionId}:
+    post:
+      summary: Send notification to specific subscription
+      description: Send a webhook notification to a specific device subscription
+      tags:
+        - Notifications
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The subscription ID to send notification to
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+            examples:
+              itinerary_update:
+                summary: Itinerary update notification
+                value:
+                  type: "itinerary"
+                  title: "Itinerary Updated"
+                  message: "Your travel itinerary has been modified"
+                  data:
+                    itineraryId: "itin123"
+                    changes: ["flight_time", "hotel"]
+              profile_update:
+                summary: Profile update notification
+                value:
+                  type: "profile"
+                  title: "Profile Updated"
+                  message: "Your profile information has been updated"
+                  data:
+                    profileId: "prof456"
+                    updatedFields: ["email", "phone"]
+      responses:
+        '200':
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponse'
+        '500':
+          description: Failed to send notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webhook/notify-user/{userId}:
+    post:
+      summary: Broadcast notification to all user devices
+      description: |
+        Send a webhook notification to all active subscriptions for a specific user.
+        Notifications will be filtered based on each subscription's notification types.
+      tags:
+        - Notifications
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The user ID to send notifications to
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+      responses:
+        '200':
+          description: Broadcast completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BroadcastResponse'
+              example:
+                success: true
+                message: "Notification broadcast completed"
+                userId: "user123"
+                totalDevices: 3
+                successfulSends: 2
+                failedSends: 1
+                results:
+                  - subscriptionId: "sub1"
+                    deviceId: "device1"
+                    success: true
+                    sentAt: "2024-01-15T10:30:00.000Z"
+                  - subscriptionId: "sub2"
+                    deviceId: "device2"
+                    success: true
+                    sentAt: "2024-01-15T10:30:00.000Z"
+                  - subscriptionId: "sub3"
+                    deviceId: "device3"
+                    success: false
+                    error: "Connection refused"
+        '404':
+          description: No active subscriptions found for user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webhook/subscription/{subscriptionId}:
+    get:
+      summary: Get subscription details
+      description: Retrieve detailed information about a specific webhook subscription
+      tags:
+        - Subscription Management
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The subscription ID to retrieve
+      responses:
+        '200':
+          description: Subscription details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  subscription:
+                    $ref: '#/components/schemas/SubscriptionDetails'
+              example:
+                success: true
+                subscription:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  userId: "user123"
+                  deviceId: "device456"
+                  appVersion: "1.2.0"
+                  notificationTypes: ["itinerary", "profile"]
+                  subscribedAt: "2024-01-15T10:30:00.000Z"
+                  lastNotificationSent: "2024-01-15T15:45:00.000Z"
+                  totalNotificationsSent: 25
+                  isActive: true
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webhook/user/{userId}/subscriptions:
+    get:
+      summary: List user's webhook subscriptions
+      description: Get all webhook subscriptions for a specific user
+      tags:
+        - Subscription Management
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The user ID to get subscriptions for
+        - name: active
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by active status (true/false)
+      responses:
+        '200':
+          description: User subscriptions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  userId:
+                    type: string
+                  totalSubscriptions:
+                    type: integer
+                  subscriptions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SubscriptionDetails'
+              example:
+                success: true
+                userId: "user123"
+                totalSubscriptions: 2
+                subscriptions:
+                  - id: "sub1"
+                    deviceId: "device1"
+                    appVersion: "1.2.0"
+                    notificationTypes: ["all"]
+                    subscribedAt: "2024-01-15T10:30:00.000Z"
+                    lastNotificationSent: "2024-01-15T15:45:00.000Z"
+                    totalNotificationsSent: 25
+                    isActive: true
+                  - id: "sub2"
+                    deviceId: "device2"
+                    appVersion: "1.1.0"
+                    notificationTypes: ["itinerary"]
+                    subscribedAt: "2024-01-14T08:20:00.000Z"
+                    lastNotificationSent: null
+                    totalNotificationsSent: 0
+                    isActive: true
+
+  /webhook/health:
+    get:
+      summary: Webhook system health check
+      description: Get the current health status and statistics of the webhook system
+      tags:
+        - System
+      responses:
+        '200':
+          description: Health check successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: string
+                    enum: [healthy, unhealthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  totalSubscriptions:
+                    type: integer
+                  activeSubscriptions:
+                    type: integer
+                  inactiveSubscriptions:
+                    type: integer
+              example:
+                success: true
+                status: "healthy"
+                timestamp: "2024-01-15T16:00:00.000Z"
+                totalSubscriptions: 150
+                activeSubscriptions: 142
+                inactiveSubscriptions: 8
+
+components:
+  schemas:
+    SubscriptionRequest:
+      type: object
+      required:
+        - webhookUrl
+        - userId
+      properties:
+        webhookUrl:
+          type: string
+          format: uri
+          description: The URL where webhook notifications will be sent
+          example: "https://your-mobile-app.com/webhook"
+        userId:
+          type: string
+          description: The unique identifier of the user
+          example: "user123"
+        deviceId:
+          type: string
+          description: The unique identifier of the device
+          example: "device456"
+        appVersion:
+          type: string
+          description: The version of the mobile application
+          example: "1.2.0"
+        notificationTypes:
+          type: array
+          items:
+            type: string
+            enum: [all, itinerary, profile, auth, booking, payment]
+          description: Types of notifications to receive
+          example: ["itinerary", "profile"]
+
+    SubscriptionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        subscriptionId:
+          type: string
+          format: uuid
+        message:
+          type: string
+        subscription:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            userId:
+              type: string
+            subscribedAt:
+              type: string
+              format: date-time
+            notificationTypes:
+              type: array
+              items:
+                type: string
+
+    NotificationRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [general, itinerary, profile, auth, booking, payment]
+          description: Type of notification
+          example: "itinerary"
+        title:
+          type: string
+          description: Notification title
+          example: "Itinerary Updated"
+        message:
+          type: string
+          description: Notification message
+          example: "Your travel itinerary has been modified"
+        data:
+          type: object
+          description: Additional data payload
+          example:
+            itineraryId: "itin123"
+            changes: ["flight_time", "hotel"]
+
+    NotificationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        subscriptionId:
+          type: string
+        status:
+          type: integer
+        sentAt:
+          type: string
+          format: date-time
+
+    BroadcastResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        userId:
+          type: string
+        totalDevices:
+          type: integer
+        successfulSends:
+          type: integer
+        failedSends:
+          type: integer
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              subscriptionId:
+                type: string
+              deviceId:
+                type: string
+              success:
+                type: boolean
+              sentAt:
+                type: string
+                format: date-time
+              error:
+                type: string
+
+    SubscriptionDetails:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        deviceId:
+          type: string
+        appVersion:
+          type: string
+        notificationTypes:
+          type: array
+          items:
+            type: string
+        subscribedAt:
+          type: string
+          format: date-time
+        lastNotificationSent:
+          type: string
+          format: date-time
+          nullable: true
+        totalNotificationsSent:
+          type: integer
+        isActive:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+        message:
+          type: string
+          description: Detailed error description
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+tags:
+  - name: Subscription Management
+    description: Operations for managing webhook subscriptions
+  - name: Notifications
+    description: Operations for sending webhook notifications
+  - name: System
+    description: System health and monitoring endpoints
+
+externalDocs:
+  description: Find out more about webhook implementation
+  url: https://docs.travelapp.com/webhooks

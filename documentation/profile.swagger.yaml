@@ -1,0 +1,356 @@
+# Swagger Documentation for Profile Controller
+
+# Add this to your main swagger configuration file
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: User's unique identifier
+          example: "507f1f77bcf86cd799439011"
+        username:
+          type: string
+          description: User's username
+          example: "johndoe123"
+        firstname:
+          type: string
+          description: User's first name
+          example: "John"
+        lastname:
+          type: string
+          description: User's last name
+          example: "Doe"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john.doe@example.com"
+        bio:
+          type: string
+          description: User's biography
+          example: "Software developer passionate about clean code"
+        dob:
+          type: string
+          format: date
+          description: User's date of birth
+          example: "1990-05-15"
+        bloodgroup:
+          type: string
+          description: User's blood group
+          example: "O+"
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+          description: User's gender
+          example: "male"
+        profession:
+          type: string
+          description: User's profession
+          example: "Software Engineer"
+        processedPicture:
+          type: string
+          description: URL or path to user's processed profile picture
+          example: "/uploads/profiles/processed_123456.jpg"
+        createdAt:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: New username
+          example: "johndoe123"
+        firstname:
+          type: string
+          description: New first name
+          example: "John"
+        lastname:
+          type: string
+          description: New last name
+          example: "Doe"
+        bio:
+          type: string
+          description: New biography
+          example: "Software developer passionate about clean code"
+        dob:
+          type: string
+          format: date
+          description: New date of birth
+          example: "1990-05-15"
+        bloodgroup:
+          type: string
+          description: New blood group
+          example: "O+"
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+          description: New gender
+          example: "male"
+        profession:
+          type: string
+          description: New profession
+          example: "Software Engineer"
+        processedPicture:
+          type: string
+          description: New profile picture URL or path
+          example: "/uploads/profiles/processed_123456.jpg"
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - oldPassword
+        - newPassword
+      properties:
+        oldPassword:
+          type: string
+          format: password
+          description: Current password
+          example: "currentPassword123"
+        newPassword:
+          type: string
+          format: password
+          description: New password
+          minLength: 8
+          example: "newSecurePassword456"
+
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Operation completed successfully"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Update failed"
+        details:
+          type: string
+          description: Detailed error information
+          example: "Validation error: username already exists"
+        message:
+          type: string
+          description: Error message
+          example: "User not found"
+
+# API Endpoints
+paths:
+  /profile:
+    get:
+      tags:
+        - Profile
+      summary: Get user profile
+      description: Retrieve the authenticated user's profile information
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                _id: "507f1f77bcf86cd799439011"
+                username: "johndoe123"
+                firstname: "John"
+                lastname: "Doe"
+                email: "john.doe@example.com"
+                bio: "Software developer passionate about clean code"
+                dob: "1990-05-15"
+                bloodgroup: "O+"
+                gender: "male"
+                profession: "Software Engineer"
+                processedPicture: "/uploads/profiles/processed_123456.jpg"
+                createdAt: "2024-01-15T10:30:00Z"
+                updatedAt: "2024-06-20T14:45:00Z"
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Access denied. No token provided."
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "User not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Server error"
+
+  /profile/update-user:
+    put:
+      tags:
+        - Profile
+      summary: Update user profile
+      description: Update the authenticated user's profile information
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+            example:
+              username: "johndoe123"
+              firstname: "John"
+              lastname: "Doe"
+              bio: "Senior Software Engineer with 5+ years experience"
+              dob: "1990-05-15"
+              bloodgroup: "O+"
+              gender: "male"
+              profession: "Senior Software Engineer"
+              processedPicture: "/uploads/profiles/processed_789012.jpg"
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                _id: "507f1f77bcf86cd799439011"
+                username: "johndoe123"
+                firstname: "John"
+                lastname: "Doe"
+                email: "john.doe@example.com"
+                bio: "Senior Software Engineer with 5+ years experience"
+                dob: "1990-05-15"
+                bloodgroup: "O+"
+                gender: "male"
+                profession: "Senior Software Engineer"
+                processedPicture: "/uploads/profiles/processed_789012.jpg"
+                createdAt: "2024-01-15T10:30:00Z"
+                updatedAt: "2024-06-28T16:20:00Z"
+        '400':
+          description: Bad request - Validation error or update failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Update failed"
+                details: "Username already exists"
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Access denied. No token provided."
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "User not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Server error"
+
+  /profile/change-password:
+    put:
+      tags:
+        - Profile
+      summary: Change user password
+      description: Change the authenticated user's password
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              oldPassword: "currentPassword123"
+              newPassword: "newSecurePassword456"
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                message: "Password updated successfully"
+        '400':
+          description: Bad request - Incorrect current password or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Incorrect current password"
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Access denied. No token provided."
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "User not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Server error"
+
+# Security applied to all profile endpoints
+security:
+  - BearerAuth: []
+
+# Tags definition
+tags:
+  - name: Profile
+    description: User profile management operations

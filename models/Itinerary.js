@@ -11,10 +11,10 @@ const rideItineraryRequestSchema = new mongoose.Schema({
 	itineraryResponses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ItineraryResponse' }],
 	status: { type: String, enum: ['pending', 'processing', 'completed', 'failed'], default: 'pending' },
 	generatedCount: { type: Number, default: 0 },
-});
+}, { timestamps: true });
 
 const rideItineraryResponseSchema = new mongoose.Schema({
-	requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ItinearyRequest', required: true },
+	requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ItineraryRequest', required: true }, // Fixed ref
 	status: { type: String, enum: ['processing', 'completed', 'failed'], default: 'processing' },
 	generatedItinerary: [{ type: mongoose.Schema.Types.Mixed }],
 	errorMessage: { type: String, default: null },
@@ -23,7 +23,7 @@ const rideItineraryResponseSchema = new mongoose.Schema({
 	model: { type: String, default: 'gpt-3.5-turbo' },
 	generatedAt: { type: Date, default: null },
 	failedAt: { type: Date, default: null },
-});
+}, { timestamps: true });
 
 // indexng
 rideItineraryRequestSchema.index({ requestedBy: 1, createdAt: -1 });
@@ -115,7 +115,7 @@ rideItineraryResponseSchema.pre('save', function(next) {
 // Enhanced middleware to update request status after response status changes
 rideItineraryResponseSchema.post('save', async function(doc, next) {
 	try {
-		const ItineraryRequest = mongoose.model('ItinearyRequest');
+		const ItineraryRequest = mongoose.model('ItineraryRequest'); // Fixed model name
 		const request = await ItineraryRequest.findById(doc.requestId);
 
 		if (request) {
@@ -176,7 +176,7 @@ rideItineraryResponseSchema.post('findOneAndUpdate', async function(doc, next) {
 	try {
 		// Only proceed if status actually changed
 		if (this._oldStatus && this._newStatus && this._oldStatus !== this._newStatus) {
-			const ItineraryRequest = mongoose.model('ItinearyRequest');
+			const ItineraryRequest = mongoose.model('ItineraryRequest'); // Fixed model name
 			const request = await ItineraryRequest.findById(this._requestId);
 
 			if (request) {
@@ -214,6 +214,6 @@ rideItineraryResponseSchema.post('findOneAndUpdate', async function(doc, next) {
 });
 
 module.exports = {
-	ItineraryRequest: mongoose.model('ItinearyRequest', rideItineraryRequestSchema),
+	ItineraryRequest: mongoose.model('ItineraryRequest', rideItineraryRequestSchema), // Fixed typo
 	ItineraryResponse: mongoose.model('ItineraryResponse', rideItineraryResponseSchema)
 };
