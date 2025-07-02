@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Events = require('../models/Events');
+const Sliders = require('../models/Sliders');
 
 async function updateExpiredEvents() {
     try {
@@ -40,7 +41,7 @@ async function updateExpiredSliders() {
         const activeSliders = await Sliders.find({isActive: true});
         let expiredSliders = [];
 
-        for(const slider of sctiveSliders) {
+        for(const slider of activeSliders) {
             const creationDate = new Date(slider.creationDate);
             const daysDifference = Math.floor((currentDate - creationDate) / (1000 * 60 * 60 * 24));
 
