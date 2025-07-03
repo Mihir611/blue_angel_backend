@@ -1,0 +1,538 @@
+openapi: 3.0.3
+info:
+  title: Events & Sliders Registration API
+  description: API for managing event and slider registrations
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /registrations/register:
+    post:
+      tags:
+        - Registrations
+      summary: Register for an event or slider
+      description: Create a new registration for either an event or slider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userEmail
+                - registrationType
+              properties:
+                userEmail:
+                  type: string
+                  format: email
+                  description: User's email address
+                  example: user@example.com
+                registrationType:
+                  type: string
+                  enum: [event, slider]
+                  description: Type of registration
+                  example: event
+                eventId:
+                  type: string
+                  format: objectId
+                  description: Event ID (required if registrationType is 'event')
+                  example: 64a7b8c9d1e2f3a4b5c6d7e8
+                sliderId:
+                  type: string
+                  format: objectId
+                  description: Slider ID (required if registrationType is 'slider')
+                  example: 64a7b8c9d1e2f3a4b5c6d7e9
+                notes:
+                  type: string
+                  description: Additional notes for the registration
+                  example: Looking forward to this event
+                contactInfo:
+                  type: object
+                  properties:
+                    phone:
+                      type: string
+                      description: Contact phone number
+                      example: +1234567890
+            examples:
+              event_registration:
+                summary: Event Registration
+                value:
+                  userEmail: user@example.com
+                  registrationType: event
+                  eventId: 64a7b8c9d1e2f3a4b5c6d7e8
+                  notes: Looking forward to this event
+                  contactInfo:
+                    phone: +1234567890
+              slider_registration:
+                summary: Slider Registration
+                value:
+                  userEmail: user@example.com
+                  registrationType: slider
+                  sliderId: 64a7b8c9d1e2f3a4b5c6d7e9
+                  notes: Interested in this slider
+                  contactInfo:
+                    phone: +1234567890
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict - user already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /registrations/user/{userEmail}:
+    get:
+      tags:
+        - Registrations
+      summary: Get registrations by user email
+      description: Retrieve all registrations for a specific user
+      parameters:
+        - name: userEmail
+          in: path
+          required: true
+          description: User's email address
+          schema:
+            type: string
+            format: email
+          example: user@example.com
+        - name: type
+          in: query
+          required: false
+          description: Filter by registration type
+          schema:
+            type: string
+            enum: [event, slider]
+          example: event
+      responses:
+        '200':
+          description: Registrations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationListResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /registrations/event/{eventId}:
+    get:
+      tags:
+        - Registrations
+      summary: Get registrations by event ID
+      description: Retrieve all registrations for a specific event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          description: Event ID
+          schema:
+            type: string
+            format: objectId
+          example: 64a7b8c9d1e2f3a4b5c6d7e8
+      responses:
+        '200':
+          description: Event registrations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationListResponse'
+        '400':
+          description: Bad request - invalid event ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /registrations/slider/{sliderId}:
+    get:
+      tags:
+        - Registrations
+      summary: Get registrations by slider ID
+      description: Retrieve all registrations for a specific slider
+      parameters:
+        - name: sliderId
+          in: path
+          required: true
+          description: Slider ID
+          schema:
+            type: string
+            format: objectId
+          example: 64a7b8c9d1e2f3a4b5c6d7e9
+      responses:
+        '200':
+          description: Slider registrations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationListResponse'
+        '400':
+          description: Bad request - invalid slider ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /registrations/active:
+    get:
+      tags:
+        - Registrations
+      summary: Get all active registrations
+      description: Retrieve all active registrations with pagination and filtering
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+        - name: type
+          in: query
+          required: false
+          description: Filter by registration type
+          schema:
+            type: string
+            enum: [event, slider]
+          example: event
+        - name: status
+          in: query
+          required: false
+          description: Filter by registration status
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled, completed]
+          example: pending
+      responses:
+        '200':
+          description: Active registrations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRegistrationResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /registrations/{registrationId}/status:
+    patch:
+      tags:
+        - Registrations
+      summary: Update registration status
+      description: Update the status of a specific registration
+      parameters:
+        - name: registrationId
+          in: path
+          required: true
+          description: Registration ID
+          schema:
+            type: string
+            format: objectId
+          example: 64a7b8c9d1e2f3a4b5c6d7ea
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [pending, confirmed, cancelled, completed]
+                  description: New status for the registration
+                  example: confirmed
+      responses:
+        '200':
+          description: Registration status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Registration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /registrations/{registrationId}:
+    delete:
+      tags:
+        - Registrations
+      summary: Delete registration
+      description: Soft delete a registration by setting isActive to false
+      parameters:
+        - name: registrationId
+          in: path
+          required: true
+          description: Registration ID
+          schema:
+            type: string
+            format: objectId
+          example: 64a7b8c9d1e2f3a4b5c6d7ea
+      responses:
+        '200':
+          description: Registration deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Registration deleted successfully
+        '400':
+          description: Bad request - invalid registration ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Registration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Registration:
+      type: object
+      properties:
+        _id:
+          type: string
+          format: objectId
+          example: 64a7b8c9d1e2f3a4b5c6d7ea
+        userEmail:
+          type: string
+          format: email
+          example: user@example.com
+        registrationType:
+          type: string
+          enum: [event, slider]
+          example: event
+        eventId:
+          type: string
+          format: objectId
+          example: 64a7b8c9d1e2f3a4b5c6d7e8
+        sliderId:
+          type: string
+          format: objectId
+          example: 64a7b8c9d1e2f3a4b5c6d7e9
+        registrationDate:
+          type: string
+          format: date-time
+          example: 2023-07-01T10:30:00.000Z
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, completed]
+          example: pending
+        notes:
+          type: string
+          example: Looking forward to this event
+        contactInfo:
+          type: object
+          properties:
+            phone:
+              type: string
+              example: +1234567890
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: 2023-07-01T10:30:00.000Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2023-07-01T10:30:00.000Z
+
+    PopulatedRegistration:
+      allOf:
+        - $ref: '#/components/schemas/Registration'
+        - type: object
+          properties:
+            userEmail:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                username:
+                  type: string
+                  example: johndoe
+                firstname:
+                  type: string
+                  example: John
+                lastname:
+                  type: string
+                  example: Doe
+                profilePicture:
+                  type: string
+                  example: https://example.com/profile.jpg
+            eventId:
+              type: object
+              description: Event details (when registrationType is 'event')
+            sliderId:
+              type: object
+              description: Slider details (when registrationType is 'slider')
+
+    RegistrationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Registration successful
+        data:
+          $ref: '#/components/schemas/PopulatedRegistration'
+
+    RegistrationListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Registrations retrieved successfully
+        count:
+          type: integer
+          example: 5
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PopulatedRegistration'
+
+    PaginatedRegistrationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Active registrations retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PopulatedRegistration'
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 50
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 10
+            totalPages:
+              type: integer
+              example: 5
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Error message
+        error:
+          type: string
+          example: Detailed error information
+
+tags:
+  - name: Registrations
+    description: Operations related to event and slider registrations

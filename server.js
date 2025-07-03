@@ -8,6 +8,7 @@ const homeRoutes = require('./routes/homeRoutes');
 const itineraryRoutes = require('./routes/itineraryRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const webhookController = require('./controllers/webhookController');
+const registerEventSlidersRoutes = require('./routes/eventsSliderRegistrationRoutes');
 const helmet = require('helmet');
 const os = require('os');
 
@@ -22,6 +23,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/home', homeRoutes);
 app.use('/api/itinerary', itineraryRoutes);
 app.use('/api/webhook', webhookRoutes);
+app.use('/api/registrationEventSliders', registerEventSlidersRoutes);
 
 
 // Get network interfaces to find IP address
