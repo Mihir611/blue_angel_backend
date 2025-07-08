@@ -95,7 +95,7 @@ exports.createEvents = async (req, res) => {
                 errors: validationErrors
             });
         }
-        
+
         // Handle MongoDB duplicate key error (if unique constraints are added later)
         if (error.code === 11000) {
             return res.status(409).json({
@@ -103,7 +103,7 @@ exports.createEvents = async (req, res) => {
                 message: "Event with this information already exists"
             });
         }
-        
+
         // Handle invalid date format
         if (error.name === 'CastError' && error.path === 'eventDate') {
             return res.status(400).json({
@@ -125,7 +125,7 @@ exports.createSliders = async (req, res) => {
 
     try {
 
-        if(!sliderData) {
+        if (!sliderData) {
             return res.status(400).json({
                 success: false,
                 message: "Slider data is required"
@@ -166,7 +166,7 @@ exports.createSliders = async (req, res) => {
                 errors: validationErrors
             });
         }
-        
+
         // Handle MongoDB duplicate key error (if unique constraints are added later)
         if (error.code === 11000) {
             return res.status(409).json({
@@ -174,7 +174,7 @@ exports.createSliders = async (req, res) => {
                 message: "Slider with this information already exists"
             });
         }
-        
+
         // Handle cast errors (invalid data types)
         if (error.name === 'CastError') {
             return res.status(400).json({
@@ -199,5 +199,63 @@ exports.getHomePage = async (req, res) => {
     catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Internal server error', error: err.message });
+    }
+}
+
+exports.getEventById = async (req, res) => {
+    const { eventId } = req.query;
+
+    try {
+        const event = await Events.findById(eventId).select('title description imageUrl eventDate location category price contactInfo tags isActive');
+        if (!event) {
+            return res.status(404).json({ success: false, message: 'Event not found' });
+        }
+        res.status(200).json({ success: true, data: event });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    }
+}
+
+exports.getSliderById = async (req, res) => {
+    const { sliderId } = req.query;
+
+    try {
+        const slider = await Sliders.findById(sliderId).select('title description imageUrl link displayOrder isActive');
+        if (!slider) {
+            return res.status(404).json({ success: false, message: 'Slider not found' });
+        }
+        res.status(200).json({ success: true, data: slider });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    }
+}
+
+exports.getEventSliders = async (req, res) => {
+    const { id, entryType } = req.query;
+
+    try {
+
+        if(!id || !entryType) {
+            return res.status(400).json({ success: false, message: 'ID and entry type are required' });
+        }
+
+        if (entryType === 'event') {
+            const event = await Events.findById(id).select('title description imageUrl eventDate location category price contactInfo tags isActive');
+            if (!event) {
+                return res.status(404).json({ success: false, message: 'Event not found' });
+            }
+            res.status(200).json({ success: true, data: event });
+        } else {
+            const slider = await Sliders.findById(id).select('title description imageUrl link displayOrder isActive');
+            if (!slider) {
+                return res.status(404).json({ success: false, message: 'Slider not found' });
+            }
+            res.status(200).json({ success: true, data: slider });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
 }
