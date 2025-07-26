@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const app = express();
-const mongoose = require('./config/db');
+require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const homeRoutes = require('./routes/homeRoutes');
@@ -10,11 +10,23 @@ const webhookRoutes = require('./routes/webhookRoutes');
 const webhookController = require('./controllers/webhookController');
 const registerEventSlidersRoutes = require('./routes/eventsSliderRegistrationRoutes');
 const helmet = require('helmet');
+const cors = require('cors');
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cors({
+    origin: [
+        'http://localhost:5000',
+        'https://*.vercel.app' // Allow all vercel apps during development
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
+}));
 
 // Custom app property
 app.notifyUser = webhookController.sendUserNotification;
@@ -26,6 +38,14 @@ app.use('/api/home', homeRoutes);
 app.use('/api/itinerary', itineraryRoutes);
 app.use('/api/webhook', webhookRoutes);
 app.use('/api/registrationEventSliders', registerEventSlidersRoutes);
+
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'API is running on Vercel!',
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Error handling middleware
 app.use((error, req, res, next) => {
