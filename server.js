@@ -9,6 +9,7 @@ const itineraryRoutes = require('./routes/itineraryRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const webhookController = require('./controllers/webhookController');
 const registerEventSlidersRoutes = require('./routes/eventsSliderRegistrationRoutes');
+const bikeRoutes = require('./routes/bikeRoutes');
 const helmet = require('helmet');
 const cors = require('cors');
 
@@ -38,6 +39,7 @@ app.use('/api/home', homeRoutes);
 app.use('/api/itinerary', itineraryRoutes);
 app.use('/api/webhook', webhookRoutes);
 app.use('/api/registrationEventSliders', registerEventSlidersRoutes);
+app.use('/api/bike', bikeRoutes);
 
 app.get('/', (req, res) => {
     res.json({
