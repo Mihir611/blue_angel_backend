@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const app = express();
-require('./config/db');
+const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const homeRoutes = require('./routes/homeRoutes');
@@ -12,12 +12,20 @@ const registerEventSlidersRoutes = require('./routes/eventsSliderRegistrationRou
 const bikeRoutes = require('./routes/bikeRoutes');
 const helmet = require('helmet');
 const cors = require('cors');
+let dbRead = false;
 
 // Middleware
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(express.json());
+app.use(async (req, res, next) => {
+    if (!dbRead) {
+        await connectDB();
+        dbRead = true;
+    }
+    next();
+})
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
     origin: [
