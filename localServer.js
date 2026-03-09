@@ -6,13 +6,15 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const homeRoutes = require('./routes/homeRoutes');
-const itineraryRoutes = require('./routes/itineraryRoutes');
+const itineraryRoutes = require('./routes/tripRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const webhookController = require('./controllers/webhookController');
 const registerEventSlidersRoutes = require('./routes/eventsSliderRegistrationRoutes');
 const bikeRoutes = require('./routes/bikeRoutes');
 const weatherRoutes = require('./routes/weatherConditionRoutes');
 const landingRoutes = require('./routes/landingRoutes');
+const fuelPriceRoutes = require('./routes/fuelRoutes');
+const utilityRoutes = require('./routes/utilityRoutes');
 
 const helmet = require('helmet');
 const cors = require('cors');
@@ -79,6 +81,8 @@ app.use('/api/registrationEventSliders', registerEventSlidersRoutes);
 app.use('/api/bike', bikeRoutes);
 app.use('/api/landing', landingRoutes);
 app.use('/api/weather', weatherRoutes);
+app.use('/api/fuel', fuelPriceRoutes);
+app.use('/api/utility', utilityRoutes);
 
 app.get('/', (req, res) => {
     res.json({

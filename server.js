@@ -10,6 +10,8 @@ const webhookRoutes = require('./routes/webhookRoutes');
 const webhookController = require('./controllers/webhookController');
 const registerEventSlidersRoutes = require('./routes/eventsSliderRegistrationRoutes');
 const bikeRoutes = require('./routes/bikeRoutes');
+const fuelPriceRoutes = require('./routes/fuelRoutes');
+const utilityRoutes = require('./routes/utilityRoutes');
 const helmet = require('helmet');
 const cors = require('cors');
 let dbRead = false;
@@ -48,6 +50,8 @@ app.use('/api/itinerary', itineraryRoutes);
 app.use('/api/webhook', webhookRoutes);
 app.use('/api/registrationEventSliders', registerEventSlidersRoutes);
 app.use('/api/bike', bikeRoutes);
+app.use('/api/fuel', fuelPriceRoutes);
+app.use('/api/utility', utilityRoutes);
 
 app.get('/', (req, res) => {
     res.json({

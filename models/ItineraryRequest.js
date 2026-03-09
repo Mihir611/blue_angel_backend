@@ -1,12 +1,17 @@
 const mongoose = require('mongoose');
 
-const masterSchema = new mongoose.Schema(
+const itineraryRequestSchema = new mongoose.Schema(
     {
         userEmail: {
             type: String,
             required: true,
             trim: true,
             lowercase: true
+        },
+        rideType: {
+            type: String,
+            required: true,
+            trim: true
         },
         rideSource: {
             type: String,
@@ -18,15 +23,15 @@ const masterSchema = new mongoose.Schema(
             required: true,
             trim: true
         },
-        itinerary_request_id: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'ItineraryRequest',
-            required: true
+        rideDuration: {
+            type: Number,
+            required: true,
+            min: 1
         },
-        itinerary_id: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Itinerary',
-            default: null
+        locationPreference: {
+            type: String,
+            trim: true,
+            default: ''
         },
         status: {
             type: String,
@@ -39,9 +44,8 @@ const masterSchema = new mongoose.Schema(
     }
 );
 
-masterSchema.index({ rideSource: 1, rideDestination: 1 });
-masterSchema.index({ userEmail: 1 });
-masterSchema.index({ itinerary_request_id: 1 });
-masterSchema.index({ itinerary_id: 1 });
+itineraryRequestSchema.index({ userEmail: 1 });
+itineraryRequestSchema.index({ status: 1 });
+itineraryRequestSchema.index({ rideSource: 1, rideDestination: 1 });
 
-module.exports = mongoose.model('ItineraryMasterSchema', masterSchema);
+module.exports = mongoose.model('ItineraryRequest', itineraryRequestSchema);

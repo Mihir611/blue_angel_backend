@@ -18,7 +18,7 @@ async function queryGemini(userPrompt, options = {}) {
         // Set default options
         const {
             systemPrompt = '',
-            model = 'gemini-1.5-flash',
+            model = 'gemini-2.5-flash',
             maxTokens = 1000,
             temperature = 0.7,
             additionalContext = ''
@@ -68,7 +68,7 @@ async function queryGemini(userPrompt, options = {}) {
         const requestOptions = {
             hostname: 'generativelanguage.googleapis.com',
             port: 443,
-            path: `/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+            path: `/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -459,7 +459,7 @@ Create a ${currentTheme.style} difficulty itinerary focused on: ${currentTheme.f
 
                     const response = await queryGemini(userPrompt, {
                         systemPrompt,
-                        model: 'gemini-2.0-flash-exp',
+                        model: 'gemini-2.5-flash',
                         maxTokens: 4000,
                         temperature: 0.2 + (attempts * 0.1) // Reduce temperature on retries
                     });
@@ -631,7 +631,7 @@ async function processDataWithGemini(data, promptConfig = {}) {
 
         const response = await queryGemini(userPrompt, {
             systemPrompt,
-            model: 'gemini-1.5-flash',
+            model: 'gemini-2.5-flash',
             maxTokens: 1500,
             temperature: 0.7
         });
