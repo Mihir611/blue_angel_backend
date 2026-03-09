@@ -31,10 +31,7 @@ app.use(async (req, res, next) => {
 })
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-    origin: [
-        'http://localhost:5000',
-        'https://*.vercel.app' // Allow all vercel apps during development
-    ],
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
