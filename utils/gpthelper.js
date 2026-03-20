@@ -68,7 +68,7 @@ async function queryGemini(userPrompt, options = {}) {
         const requestOptions = {
             hostname: 'generativelanguage.googleapis.com',
             port: 443,
-            path: `/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+            path: `/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -86,19 +86,19 @@ async function queryGemini(userPrompt, options = {}) {
             res.on('end', () => {
                 try {
                     const jsonResponse = JSON.parse(responseData);
-                    
+
                     // Check for API errors
                     if (jsonResponse.error) {
                         reject(new Error(`Gemini API Error: ${jsonResponse.error.message}`));
                         return;
                     }
-                    
+
                     // Check if response was blocked by safety filters
                     if (!jsonResponse.candidates || jsonResponse.candidates.length === 0) {
                         reject(new Error('Gemini API: No response generated or content was blocked by safety filters'));
                         return;
                     }
-                    
+
                     resolve(jsonResponse);
                 } catch (error) {
                     reject(new Error(`Failed to parse JSON response: ${error.message}`));
@@ -191,7 +191,7 @@ function parseMultipleItinerariesJSON(text) {
     try {
         const firstBrace = text.indexOf('{');
         const lastBrace = text.lastIndexOf('}');
-        
+
         if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
             const extractedJson = text.substring(firstBrace, lastBrace + 1);
             const parsed = JSON.parse(extractedJson);
@@ -209,15 +209,15 @@ function parseMultipleItinerariesJSON(text) {
     // Strategy 4: Try to fix common JSON issues and parse
     try {
         let fixedJson = text;
-        
+
         // Remove markdown code block markers
         fixedJson = fixedJson.replace(/```json\s*/gi, '').replace(/```\s*/g, '');
-        
+
         // Try to extract JSON portion
         const jsonMatch = fixedJson.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             fixedJson = jsonMatch[0];
-            
+
             // Fix common JSON issues
             fixedJson = fixedJson
                 .replace(/,\s*}/g, '}')  // Remove trailing commas
@@ -225,7 +225,7 @@ function parseMultipleItinerariesJSON(text) {
                 .replace(/'/g, '"')      // Replace single quotes with double quotes
                 .replace(/(\w+):/g, '"$1":')  // Quote unquoted keys
                 .replace(/"{2,}/g, '"'); // Fix double quotes
-            
+
             const parsed = JSON.parse(fixedJson);
             return {
                 success: true,
@@ -256,7 +256,7 @@ function parseMultipleItinerariesJSON(text) {
  */
 function createEnhancedFallbackStructure(text) {
     const lines = text.split('\n').filter(line => line.trim());
-    
+
     // Try to extract basic information from the text
     const extractedInfo = {
         title: null,
@@ -301,11 +301,11 @@ function createEnhancedFallbackStructure(text) {
     let dayMatch;
     while ((dayMatch = dayPattern.exec(text)) !== null) {
         const dayNumber = parseInt(dayMatch[1]);
-        
+
         // Try to extract day title
         const dayTitlePattern = new RegExp(`"day":\\s*${dayNumber}[^}]*"title":\\s*"([^"]+)"`, 'i');
         const dayTitleMatch = text.match(dayTitlePattern);
-        
+
         extractedInfo.days.push({
             day: dayNumber,
             title: dayTitleMatch ? dayTitleMatch[1] : `Day ${dayNumber}`,
@@ -333,13 +333,13 @@ function createEnhancedFallbackStructure(text) {
  */
 async function generateMultipleTravelItinerariesSeparate(travelData) {
     try {
-        const { 
-            source, 
-            destination, 
-            days, 
-            travelMode = 'motorbiking', 
+        const {
+            source,
+            destination,
+            days,
+            travelMode = 'motorbiking',
             preferences = [],
-            numItineraries = 3 
+            numItineraries = 3
         } = travelData;
 
         // Validate required fields
@@ -380,7 +380,7 @@ async function generateMultipleTravelItinerariesSeparate(travelData) {
 
             while (!success && attempts < maxAttempts) {
                 attempts++;
-                
+
                 try {
                     // Enhanced prompt with explicit JSON formatting instructions
                     const userPrompt = `Generate 1 travel itinerary for a ${days} day ${travelMode} tour to ${destination} starting from ${source}.
@@ -401,6 +401,10 @@ Key requirements:
 - Detailed timing and distance information
 - Budget estimates and practical tips
 - Accommodation suggestions matching the theme
+- For each activity, include exact GPS coordinates (latitude and longitude)
+- Include entry fees or costs for each activity (write "Free" if no charge)
+- If an activity requires booking or permission (wildlife sanctuaries, permits, guided tours), set booking_required to true and provide contact details
+- If no booking is needed, set booking_required to false and booking_info to null
 
 Additional preferences: ${preferences.length > 0 ? preferences.join(', ') : 'None specified'}
 
@@ -430,20 +434,38 @@ Required JSON structure:
       "title": "Day title",
       "route": "Route description",
       "distance": "distance in km",
-      "activities": ["activity1", "activity2"],
+      "coordinates": {
+        "start": { "lat": 0.0, "lng": 0.0 },
+        "end": { "lat": 0.0, "lng": 0.0 }
+      },
+      "activities": [
+        {
+          "time": "09:00",
+          "title": "Activity name",
+          "description": "Brief description",
+          "location": "Location name",
+          "coordinates": { "lat": 0.0, "lng": 0.0 },
+          "duration_minutes": 60,
+          "entry_fee": "INR 50 or Free",
+          "booking_required": true,
+          "booking_info": {
+            "contact_phone": "+91-XXXXXXXXXX",
+            "contact_email": "email@example.com",
+            "website": "https://example.com",
+            "advance_booking_days": 1,
+            "notes": "Book online or arrive early"
+          }
+        }
+      ],
       "accommodation": "accommodation suggestion",
       "meals": "meal suggestions",
       "budget": "daily budget estimate",
-      "highlights": ["highlight1", "highlight2"],
-      "coordinates": {
-        "start": "lat,lng",
-        "end": "lat,lng"
-      }
+      "highlights": ["highlight1", "highlight2"]
     }
   ]
 }`;
 
-                    const systemPrompt = `You are an expert travel planner. You MUST respond with valid JSON only.
+const systemPrompt = `You are an expert travel planner. You MUST respond with valid JSON only.
 
 CRITICAL RULES:
 - NO markdown formatting (no \`\`\`json or \`\`\`)
@@ -452,6 +474,9 @@ CRITICAL RULES:
 - Start with { and end with }
 - Use proper JSON syntax with double quotes
 - Ensure all strings are properly escaped
+- Always include real GPS coordinates for every activity location
+- Always include entry fees (use "Free" if none)
+- Always include booking_info when booking_required is true, set to null otherwise
 
 Create a ${currentTheme.style} difficulty itinerary focused on: ${currentTheme.focus}`;
 
@@ -459,8 +484,8 @@ Create a ${currentTheme.style} difficulty itinerary focused on: ${currentTheme.f
 
                     const response = await queryGemini(userPrompt, {
                         systemPrompt,
-                        model: 'gemini-2.5-flash',
-                        maxTokens: 4000,
+                        model: process.env.MODEL_AI,
+                        maxTokens: 6000,
                         temperature: 0.2 + (attempts * 0.1) // Reduce temperature on retries
                     });
 
@@ -470,16 +495,16 @@ Create a ${currentTheme.style} difficulty itinerary focused on: ${currentTheme.f
                     }
 
                     rawContents.push(rawContent);
-                    
+
                     const parsedItinerary = parseMultipleItinerariesJSON(rawContent);
-                    
+
                     if (parsedItinerary.success) {
                         console.log(`Successfully generated itinerary ${i + 1} on attempt ${attempts}`);
                         results.push(parsedItinerary.data);
                         success = true;
                     } else {
                         console.log(`Failed to parse itinerary ${i + 1}, attempt ${attempts}: ${parsedItinerary.error}`);
-                        
+
                         if (attempts === maxAttempts) {
                             // Use enhanced fallback on final attempt
                             console.log(`Using enhanced fallback for itinerary ${i + 1}`);
@@ -506,7 +531,7 @@ Create a ${currentTheme.style} difficulty itinerary focused on: ${currentTheme.f
                         attempt: attempts,
                         error: requestError.message
                     });
-                    
+
                     if (attempts === maxAttempts) {
                         // Create basic fallback structure
                         results.push({
@@ -622,10 +647,10 @@ async function processDataWithGemini(data, promptConfig = {}) {
         } = promptConfig;
 
         const dataString = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
-        
+
         const userPrompt = `${basePrompt}\n\nData:\n${dataString}\n\nInstructions: ${instructions}`;
-        
-        const systemPrompt = format === 'json' 
+
+        const systemPrompt = format === 'json'
             ? "You are a helpful assistant that analyzes data and provides responses in JSON format when requested."
             : "You are a helpful assistant that analyzes data and provides clear, structured responses.";
 

@@ -6,7 +6,7 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const homeRoutes = require('./routes/homeRoutes');
-const itineraryRoutes = require('./routes/tripRoutes');
+const itineraryRoutes = require('./routes/itineraryRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const webhookController = require('./controllers/webhookController');
 const registerEventSlidersRoutes = require('./routes/eventsSliderRegistrationRoutes');
@@ -15,6 +15,9 @@ const weatherRoutes = require('./routes/weatherConditionRoutes');
 const landingRoutes = require('./routes/landingRoutes');
 const fuelPriceRoutes = require('./routes/fuelRoutes');
 const utilityRoutes = require('./routes/utilityRoutes');
+const healthRoutes= require('./routes/healthRoutes');
+const riderStatsRoutes = require('./routes/riderStatsRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
 
 const helmet = require('helmet');
 const cors = require('cors');
@@ -71,7 +74,7 @@ app.notifyUser = webhookController.sendUserNotification;
 // ====================
 // ROUTES
 // ====================
-
+app.use('/api/healthCheck', healthRoutes);
 app.use('/api/user', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/home', homeRoutes);
@@ -83,6 +86,8 @@ app.use('/api/landing', landingRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/fuel', fuelPriceRoutes);
 app.use('/api/utility', utilityRoutes);
+app.use('/api/getRiderStats', riderStatsRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 app.get('/', (req, res) => {
     res.json({

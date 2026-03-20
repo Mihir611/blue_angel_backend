@@ -11,11 +11,25 @@ const getAllEvents = async () => {
             console.error('Script failed:', result.error);
         }
 
-        const events = await Events.find({ isActive: true })
-            .sort({ eventDate: 1 }) // Sort by event date ascending
-            .limit(10) // Limit to 10 events
-            .select('title description imageUrl eventDate location category price'); // Select only necessary fields
-        return events;
+        const events = await Events.aggregate([
+            { $match: { isActive: true } },            // Filter active events
+            { $sample: { size: 5 } },                 // Pick 10 random events
+            { $project: {                              // Select only necessary fields
+                title: 1,
+                description: 1,
+                imageUrl: 1,
+                eventDate: 1,
+                location: 1,
+                category: 1,
+                price: 1
+            }}
+        ]);
+
+        if (!events || events.length === 0) {
+            return { success: false, message: 'No events found', data: [] };
+        }
+
+        return { success: true, data: events };
     } catch (err) {
         throw new Error('Failed to fetch events: ' + err.message);
     }
@@ -29,13 +43,24 @@ const getAllSliders = async () => {
             console.log(`Summary: ${result.modifiedCount} sliders updated`);
         } else {
             console.error('Script failed:', result.error);
-            process.exit(1);
         }
 
-        const sliders = await Sliders.find({ isActive: true })
-            .sort({ displayOrder: 1 }) // Sort by display order ascending
-            .select('title description imageUrl link'); // Select only necessary fields
-        return sliders;
+        const sliders = await Sliders.aggregate([
+            { $match: { isActive: true } },           // Filter active sliders
+            { $sample: { size: 5 } },                  // Pick 5 random sliders
+            { $project: {                              // Select only necessary fields
+                title: 1,
+                description: 1,
+                imageUrl: 1,
+                link: 1
+            }}
+        ]);
+
+        if (!sliders || sliders.length === 0) {
+            return { success: false, message: 'No sliders found', data: [] };
+        }
+
+        return { success: true, data: sliders };
     } catch (err) {
         throw new Error('Failed to fetch sliders: ' + err.message);
     }
@@ -193,8 +218,19 @@ exports.createSliders = async (req, res) => {
 
 exports.getHomePage = async (req, res) => {
     try {
-        const [events, sliders] = await Promise.all([getAllEvents(), getAllSliders()]);
-        res.json({ events, sliders });
+        const [eventsResult, slidersResult] = await Promise.all([getAllEvents(), getAllSliders()]);
+        res.json({
+            events: {
+                success: eventsResult.success,
+                message: eventsResult.message || null,
+                data: eventsResult.data,
+            },
+            sliders: {
+                success: slidersResult.success,
+                message: slidersResult.message || null,
+                data: slidersResult.data,
+            },
+        });
     }
     catch (err) {
         console.error(err);

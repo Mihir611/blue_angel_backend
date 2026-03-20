@@ -2,8 +2,9 @@ const mongoose = require('mongoose');
 
 const itineraryRequestSchema = new mongoose.Schema(
     {
-        userEmail: {
+        user: {
             type: String,
+            ref: "User",
             required: true,
             trim: true,
             lowercase: true
@@ -44,7 +45,7 @@ const itineraryRequestSchema = new mongoose.Schema(
     }
 );
 
-itineraryRequestSchema.index({ userEmail: 1 });
+itineraryRequestSchema.index({ user: 1 });
 itineraryRequestSchema.index({ status: 1 });
 itineraryRequestSchema.index({ rideSource: 1, rideDestination: 1 });
 
