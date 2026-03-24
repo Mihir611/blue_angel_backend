@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const eventsSlidersRegistrationSchema = new mongoose.Schema({
-    userEmail: { type: String, required: true, trim: true, lowercase: true },
+    userId: { type: String, required: true, trim: true},
     registrationType: { type: String, enum: ['event', 'slider'], required: true },
     eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Events', required: function () { return this.registrationType === 'event'; } },
     sliderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sliders', required: function () { return this.registrationType === 'slider'; } },
@@ -15,7 +15,7 @@ const eventsSlidersRegistrationSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Indexes
-eventsSlidersRegistrationSchema.index({ userEmail: 1, registrationType: 1 });
+eventsSlidersRegistrationSchema.index({ userId: 1, registrationType: 1 });
 eventsSlidersRegistrationSchema.index({ eventId: 1 });
 eventsSlidersRegistrationSchema.index({ sliderId: 1 });
 eventsSlidersRegistrationSchema.index({ registrationDate: 1 });
@@ -23,7 +23,7 @@ eventsSlidersRegistrationSchema.index({ status: 1 });
 
 // unique registration per user event/slider
 eventsSlidersRegistrationSchema.index({
-    userEmail: 1, eventId: 1, sliderId: 1
+    userId: 1, eventId: 1, sliderId: 1
 }, { unique: true, sparse: true });
 
 //pre save middleware to update updatedAt field
@@ -36,7 +36,7 @@ eventsSlidersRegistrationSchema.pre('save', function (next) {
 eventsSlidersRegistrationSchema.methods.getFullRegistrationDetails = function () {
     const populateFields = [
         {
-            path: 'userEmail',
+            path: 'userId',
             select: 'email username firstname lastname profilePicture'
         }
     ];
@@ -51,9 +51,9 @@ eventsSlidersRegistrationSchema.methods.getFullRegistrationDetails = function ()
 };
 
 // method to find registration by event
-eventsSlidersRegistrationSchema.statics.findByUserEmail = function (userEmail, type = null) {
-    const query = { userEmail, isActive: true };
-    if (query) {
+eventsSlidersRegistrationSchema.statics.findByUserId = function (userId, type = null) {
+    const query = { userId, isActive: true };
+    if (type) {
         query.registrationType = type;
     }
     return this.find(query);

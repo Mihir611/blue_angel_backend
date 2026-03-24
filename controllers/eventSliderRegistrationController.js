@@ -1,5 +1,7 @@
 const EventsSliderRegistration = require('../models/EventAndSlidersRegistration');
+const User = require('../models/User');
 const mongoose = require('mongoose');
+const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 
 exports.RegisterEvent = async (req, res) => {
     try {
@@ -8,6 +10,17 @@ exports.RegisterEvent = async (req, res) => {
         if (!userEmail || !registrationType) {
             return res.status(400).json({ success: false, message: 'User Email and registration type are required' });
         }
+
+        const user = await getUserByEmail(userEmail);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        const userId = user.userId;
 
         if (!['event', 'slider'].includes(registrationType)) {
             return res.status(400).json({
@@ -47,14 +60,12 @@ exports.RegisterEvent = async (req, res) => {
         }
 
         // Build query conditions more carefully
-        const queryConditions = { userEmail, isActive: true };
-        
+        const queryConditions = { userId, isActive: true, registrationType };
+
         if (registrationType === 'event') {
             queryConditions.eventId = eventId;
-            queryConditions.registrationType = 'event';
         } else {
             queryConditions.sliderId = sliderId;
-            queryConditions.registrationType = 'slider';
         }
 
         const existingRegistration = await EventsSliderRegistration.findOne(queryConditions);
@@ -66,10 +77,7 @@ exports.RegisterEvent = async (req, res) => {
             });
         }
 
-        const registrationData = {
-            userEmail, registrationType, notes, contactInfo, isActive: true
-        };
-
+        const registrationData = { userId, registrationType, notes, contactInfo, isActive: true };
         if (registrationType === 'event') {
             registrationData.eventId = eventId;
         } else {
@@ -115,12 +123,25 @@ exports.getEventRegistrationByUser = async (req, res) => {
                 message: 'user email is required'
             });
         }
+        const user = await getUserByEmail(userEmail);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
 
-        const registrations = await EventsSliderRegistration.findByUserEmail(userEmail, type);
+        const registrations = await EventsSliderRegistration.findUserById(user.userId, type);
 
         const populatedRegistrations = await Promise.all(
             registrations.map(async (registration) => {
-                return await registration.getFullRegistrationDetails();
+                const details = await registration.getFullRegistrationDetails();
+                const obj = details.toObject();
+                // Replace userId string with readable user info
+                obj.user = {
+                    email: user.email,
+                    username: user.username,
+                    firstname: user.firstname,
+                    lastname: user.lastname,
+                };
+                return obj;
             })
         );
 
@@ -140,32 +161,43 @@ exports.getEventRegistrationByUser = async (req, res) => {
     }
 }
 
+// ─── Shared helper: attach user info to a list of registrations ───────────────
+const attachUserInfo = async (registrations) => {
+    return Promise.all(
+        registrations.map(async (registration) => {
+            const details = await registration.getFullRegistrationDetails();
+            const obj = details.toObject();
+
+            // Fetch user by userId string and replace it with readable fields
+            const user = await User.findOne({ userId: obj.userId });
+            if (user) {
+                obj.user = {
+                    email: user.email,
+                    username: user.username,
+                    firstname: user.firstname,
+                    lastname: user.lastname,
+                };
+            }
+            return obj;
+        })
+    );
+};
+
+// ─── Get Registrations by Event ───────────────────────────────────────────────
 exports.getRegistrationByEvents = async (req, res) => {
     try {
         const { eventId } = req.params;
 
         if (!eventId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Event ID is required'
-            });
+            return res.status(400).json({ success: false, message: 'Event ID is required' });
         }
 
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid event ID format'
-            });
+            return res.status(400).json({ success: false, message: 'Invalid event ID format' });
         }
 
         const registrations = await EventsSliderRegistration.findByEvent(eventId);
-
-        // Populate references for each registration
-        const populatedRegistrations = await Promise.all(
-            registrations.map(async (registration) => {
-                return await registration.getFullRegistrationDetails();
-            })
-        );
+        const populatedRegistrations = await attachUserInfo(registrations);
 
         res.status(200).json({
             success: true,
@@ -175,40 +207,25 @@ exports.getRegistrationByEvents = async (req, res) => {
         });
     } catch (error) {
         console.error('Get event registrations error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
-}
+};
 
+// ─── Get Registrations by Slider ──────────────────────────────────────────────
 exports.getRegistrationBySliders = async (req, res) => {
     try {
         const { sliderId } = req.params;
 
         if (!sliderId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Slider ID is required'
-            });
+            return res.status(400).json({ success: false, message: 'Slider ID is required' });
         }
 
         if (!mongoose.Types.ObjectId.isValid(sliderId)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid slider ID format'
-            });
+            return res.status(400).json({ success: false, message: 'Invalid slider ID format' });
         }
 
         const registrations = await EventsSliderRegistration.findBySlider(sliderId);
-
-        // Populate references for each registration
-        const populatedRegistrations = await Promise.all(
-            registrations.map(async (registration) => {
-                return await registration.getFullRegistrationDetails();
-            })
-        );
+        const populatedRegistrations = await attachUserInfo(registrations);
 
         res.status(200).json({
             success: true,
@@ -218,45 +235,28 @@ exports.getRegistrationBySliders = async (req, res) => {
         });
     } catch (error) {
         console.error('Get slider registrations error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
-}
+};
 
+// ─── Get All Registrations ─────────────────────────────────────────────────────
 exports.getAllRegistrations = async (req, res) => {
     try {
         const { page = 1, limit = 10, type, status } = req.query;
         const skip = (page - 1) * limit;
 
-        // Build query
         const query = { isActive: true };
+        if (type && ['event', 'slider'].includes(type)) query.registrationType = type;
+        if (status && ['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) query.status = status;
 
-        if (type && ['event', 'slider'].includes(type)) {
-            query.registrationType = type;
-        }
-
-        if (status && ['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
-            query.status = status;
-        }
-
-        // Get total count for pagination
         const total = await EventsSliderRegistration.countDocuments(query);
 
-        // Get registrations with pagination
         const registrations = await EventsSliderRegistration.find(query)
             .sort({ registrationDate: -1 })
             .skip(skip)
             .limit(parseInt(limit));
 
-        // Populate references for each registration
-        const populatedRegistrations = await Promise.all(
-            registrations.map(async (registration) => {
-                return await registration.getFullRegistrationDetails();
-            })
-        );
+        const populatedRegistrations = await attachUserInfo(registrations);
 
         res.status(200).json({
             success: true,
@@ -271,31 +271,22 @@ exports.getAllRegistrations = async (req, res) => {
         });
     } catch (error) {
         console.error('Get all active registrations error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
-}
+};
 
+// ─── Update Registration Status ───────────────────────────────────────────────
 exports.updateRegistrationStatus = async (req, res) => {
     try {
         const { registrationId } = req.params;
         const { status } = req.body;
 
         if (!registrationId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Registration ID is required'
-            });
+            return res.status(400).json({ success: false, message: 'Registration ID is required' });
         }
 
         if (!mongoose.Types.ObjectId.isValid(registrationId)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid registration ID format'
-            });
+            return res.status(400).json({ success: false, message: 'Invalid registration ID format' });
         }
 
         if (!status || !['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
@@ -312,13 +303,10 @@ exports.updateRegistrationStatus = async (req, res) => {
         );
 
         if (!registration) {
-            return res.status(404).json({
-                success: false,
-                message: 'Registration not found'
-            });
+            return res.status(404).json({ success: false, message: 'Registration not found' });
         }
 
-        const populatedRegistration = await registration.getFullRegistrationDetails();
+        const [populatedRegistration] = await attachUserInfo([registration]);
 
         res.status(200).json({
             success: true,
@@ -327,30 +315,21 @@ exports.updateRegistrationStatus = async (req, res) => {
         });
     } catch (error) {
         console.error('Update registration status error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
-}
+};
 
+// ─── Soft Delete Registration ─────────────────────────────────────────────────
 exports.deleteRegistrations = async (req, res) => {
     try {
         const { registrationId } = req.params;
 
         if (!registrationId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Registration ID is required'
-            });
+            return res.status(400).json({ success: false, message: 'Registration ID is required' });
         }
 
         if (!mongoose.Types.ObjectId.isValid(registrationId)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid registration ID format'
-            });
+            return res.status(400).json({ success: false, message: 'Invalid registration ID format' });
         }
 
         const registration = await EventsSliderRegistration.findByIdAndUpdate(
@@ -360,22 +339,12 @@ exports.deleteRegistrations = async (req, res) => {
         );
 
         if (!registration) {
-            return res.status(404).json({
-                success: false,
-                message: 'Registration not found'
-            });
+            return res.status(404).json({ success: false, message: 'Registration not found' });
         }
 
-        res.status(200).json({
-            success: true,
-            message: 'Registration deleted successfully'
-        });
+        res.status(200).json({ success: true, message: 'Registration deleted successfully' });
     } catch (error) {
         console.error('Delete registration error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
-}
+};

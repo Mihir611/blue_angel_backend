@@ -1,5 +1,5 @@
 const { ItineraryRequest, ItineraryResponse } = require('../models/Itinerary');
-const { generateMultipleTravelItinerariesSeparate } = require('../utils/gpthelper');
+const { generateMultipleTravelItinerariesSeparate } = require('../utils/gpthelper-openRouter');
 const getWeatherUpdates = require('../utils/weatherUpdates');
 
 //#region Helper functions

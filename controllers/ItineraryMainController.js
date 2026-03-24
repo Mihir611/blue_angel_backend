@@ -1,7 +1,9 @@
 const ItineraryRequest = require('../models/ItineraryRequest');
 const Itinerary = require('../models/ItinerarySchema');
 const Master = require('../models/ItineraryMaster');
-const { generateMultipleTravelItineraries } = require('../utils/gpthelper');
+const { generateMultipleTravelItineraries } = require('../utils/gpthelper-openRouter');
+const { getUserByEmail } = require('../utils/getUserDetailsHelper');
+const Bikes = require('../models/Bikes');
 
 exports.createItineraryRequest = async (req, res) => {
     try {
@@ -21,20 +23,32 @@ exports.createItineraryRequest = async (req, res) => {
             });
         }
 
+        const user = await getUserByEmail(userEmail);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        const userId = user.userId;
+
+        // Check if user has a bike in his garage
+        const userBike = await Bikes.findOne({ owner: userId });
+        if (!userBike) {
+            return res.status(403).json({ success: false, message: 'No bike found in your garage, Please add a bike before planning a ride.' });
+        }
+
         // ── 1. Save the user's request ────────────────────────────────────────
         const itineraryRequest = await ItineraryRequest.create({
-            userEmail,
+            user: userId,
             rideType,
             rideSource,
             rideDestination,
             rideDuration,
-            locationPreference: locationPreferences|| '',
+            locationPreference: locationPreferences || '',
             status: 'processing'
         });
 
         // ── 2. Create master record (itinerary_id null until generated) ───────
         const masterRecord = await Master.create({
-            userEmail,
+            user: userId,
             rideSource,
             rideDestination,
             itinerary_request_id: itineraryRequest._id,
@@ -74,12 +88,27 @@ exports.createItineraryRequest = async (req, res) => {
             const daysPayload = (raw.days || []).map((d, idx) => ({
                 day: d.day || idx + 1,
                 date: new Date(Date.now() + idx * 86400000),
+                title: d.title || '',
+                route: d.route || '',
+                distance: d.distance || '',
+                coordinates: {
+                    start: d.coordinates?.start || null,
+                    end: d.coordinates?.end || null
+                },
+                accommodation: d.accommodation || '',
+                meals: d.meals || '',
+                budget: d.budget || '',
+                highlights: d.highlights || [],
                 activities: (d.activities || []).map(act => ({
                     time: act.time || '09:00',
                     title: typeof act === 'string' ? act : act.title || 'Activity',
                     description: act.description || '',
                     location: act.location || d.route || '',
-                    duration_minutes: act.duration_minutes || 60
+                    coordinates: act.coordinates || null,
+                    duration_minutes: act.duration_minutes || 60,
+                    entry_fee: act.entry_fee || 'Free',
+                    booking_required: act.booking_required || false,
+                    booking_info: act.booking_required ? (act.booking_info || null) : null
                 }))
             }));
 
@@ -128,10 +157,10 @@ exports.createItineraryRequest = async (req, res) => {
 
 exports.getRequestById = async (req, res) => {
     try {
-        const { requestId } = req.params; 
+        const { requestId } = req.params;
 
         const itineraryRequest = await ItineraryRequest.findById(requestId);
-        if(!itineraryRequest) {
+        if (!itineraryRequest) {
             return res.status(404).json({ success: false, message: 'Request not found' });
         }
 

@@ -1,76 +1,65 @@
 const https = require('https');
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
+const MODEL_AI = process.env.MODEL_AI
 /**
- * Send a query to Gemini and get response - IMPROVED VERSION
+ * Send a query to OpenRouter and get response
  * @param {string} userPrompt - The main prompt/data from your Express server
  * @param {Object} options - Additional options for the query
- * @returns {Promise<Object>} - Gemini response object
+ * @returns {Promise<Object>} - OpenRouter response object
  */
-async function queryGemini(userPrompt, options = {}) {
+async function queryOpenRouter(userPrompt, options = {}) {
     return new Promise((resolve, reject) => {
         // Validate API key
-        if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your-gemini-api-key-here') {
-            reject(new Error('Gemini API key not configured'));
+        if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY === 'your-openrouter-api-key-here') {
+            reject(new Error('OpenRouter API key not configured'));
             return;
         }
 
         // Set default options
         const {
             systemPrompt = '',
-            model = 'gemini-2.5-flash',
+            model = MODEL_AI, // Default model, can be changed to others like 'google/gemini-pro'
             maxTokens = 1000,
             temperature = 0.7,
-            additionalContext = ''
+            additionalContext = '',
+            tool_choice = 'auto', // default tool choice
+            tools = [] // default tools array
         } = options;
 
-        // Combine user prompt with additional context and system prompt
-        let finalPrompt = userPrompt;
-        if (additionalContext) {
-            finalPrompt = `${additionalContext}\n\n${userPrompt}`;
-        }
+        // Construct messages array for OpenRouter API
+        const messages = [];
+
         if (systemPrompt) {
-            finalPrompt = `${systemPrompt}\n\n${finalPrompt}`;
+            messages.push({ role: 'system', content: systemPrompt });
         }
 
-        const requestData = JSON.stringify({
-            contents: [{
-                parts: [{
-                    text: finalPrompt
-                }]
-            }],
-            generationConfig: {
-                maxOutputTokens: maxTokens,
-                temperature: temperature,
-                topP: 0.8,
-                topK: 10
-            },
-            safetySettings: [
-                {
-                    category: "HARM_CATEGORY_HARASSMENT",
-                    threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                },
-                {
-                    category: "HARM_CATEGORY_HATE_SPEECH",
-                    threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                },
-                {
-                    category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                    threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                },
-                {
-                    category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-                    threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                }
-            ]
-        });
+        if (additionalContext) {
+            messages.push({ role: 'user', content: additionalContext });
+        }
+
+        messages.push({ role: 'user', content: userPrompt });
+
+        const requestBody = {
+            model: model,
+            messages: messages,
+            max_tokens: maxTokens,
+            temperature: temperature,
+            top_p: 0.8, // Common parameter, can be adjusted
+            top_k: 40,  // Common parameter, can be adjusted
+            tool_choice: tool_choice,
+            tools: tools
+        };
+
+        const requestData = JSON.stringify(requestBody);
 
         const requestOptions = {
-            hostname: 'generativelanguage.googleapis.com',
+            hostname: 'openrouter.ai',
             port: 443,
-            path: `/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+            path: '/api/v1/chat/completions', // Endpoint for chat completions
             method: 'POST',
             headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(requestData)
             }
@@ -87,15 +76,15 @@ async function queryGemini(userPrompt, options = {}) {
                 try {
                     const jsonResponse = JSON.parse(responseData);
 
-                    // Check for API errors
+                    // Check for API errors from OpenRouter
                     if (jsonResponse.error) {
-                        reject(new Error(`Gemini API Error: ${jsonResponse.error.message}`));
+                        reject(new Error(`OpenRouter API Error: ${jsonResponse.error.message}`));
                         return;
                     }
 
-                    // Check if response was blocked by safety filters
-                    if (!jsonResponse.candidates || jsonResponse.candidates.length === 0) {
-                        reject(new Error('Gemini API: No response generated or content was blocked by safety filters'));
+                    // Check if response contains choices (the actual content)
+                    if (!jsonResponse.choices || jsonResponse.choices.length === 0) {
+                        reject(new Error('OpenRouter API: No response choices received'));
                         return;
                     }
 
@@ -115,28 +104,30 @@ async function queryGemini(userPrompt, options = {}) {
             reject(new Error('Request timeout'));
         });
 
-        req.setTimeout(60000); // 60 second timeout for multiple itineraries
+        req.setTimeout(60000); // 60 second timeout
         req.write(requestData);
         req.end();
     });
 }
 
 /**
- * Extract just the message content from Gemini response
- * @param {Object} response - Full Gemini API response
- * @returns {string|null} - The message content or null if not found
+ * Extract just the message content from OpenRouter response
+ * Handles potential tool calls or multiple choices.
+ * @param {Object} response - Full OpenRouter API response
+ * @returns {string|Object|null} - The message content, tool calls, or null if not found
  */
 function extractMessageContent(response) {
-    try {
-        return response.candidates[0].content.parts[0].text;
-    } catch (error) {
+        try {
+        return response.choices?.[0]?.message?.content ?? null;
+    } catch (_) {
         return null;
     }
 }
 
 /**
  * IMPROVED JSON Parser with better error handling and multiple fallback strategies
- * @param {string} text - Text response from Gemini
+ * This function remains largely the same as it parses text, regardless of the API source.
+ * @param {string} text - Text response from LLM
  * @returns {Object} - Parsed JSON object or structured fallback
  */
 function parseMultipleItinerariesJSON(text) {
@@ -251,13 +242,13 @@ function parseMultipleItinerariesJSON(text) {
 
 /**
  * ENHANCED fallback structure creator with better text analysis
+ * This function remains largely the same as it operates on text.
  * @param {string} text - Raw text response
  * @returns {Object} - Enhanced structured data
  */
 function createEnhancedFallbackStructure(text) {
     const lines = text.split('\n').filter(line => line.trim());
 
-    // Try to extract basic information from the text
     const extractedInfo = {
         title: null,
         theme: null,
@@ -269,40 +260,32 @@ function createEnhancedFallbackStructure(text) {
         days: []
     };
 
-    // Extract title
     const titleMatch = text.match(/"title":\s*"([^"]+)"/i) || text.match(/title:\s*([^\n,]+)/i);
     if (titleMatch) extractedInfo.title = titleMatch[1].trim();
 
-    // Extract theme
     const themeMatch = text.match(/"theme":\s*"([^"]+)"/i);
     if (themeMatch) extractedInfo.theme = themeMatch[1].trim();
 
-    // Extract duration
     const durationMatch = text.match(/"duration":\s*(\d+)/i) || text.match(/(\d+)\s*days?/i);
     if (durationMatch) extractedInfo.duration = parseInt(durationMatch[1]);
 
-    // Extract locations
     const startMatch = text.match(/"startLocation":\s*"([^"]+)"/i);
     if (startMatch) extractedInfo.startLocation = startMatch[1].trim();
 
     const endMatch = text.match(/"endLocation":\s*"([^"]+)"/i);
     if (endMatch) extractedInfo.endLocation = endMatch[1].trim();
 
-    // Extract distance
     const distanceMatch = text.match(/"totalDistance":\s*"([^"]+)"/i);
     if (distanceMatch) extractedInfo.totalDistance = distanceMatch[1].trim();
 
-    // Extract budget
     const budgetMatch = text.match(/"estimatedBudget":\s*"([^"]+)"/i);
     if (budgetMatch) extractedInfo.budget = budgetMatch[1].trim();
 
-    // Extract days information
     const dayPattern = /"day":\s*(\d+)/gi;
     let dayMatch;
     while ((dayMatch = dayPattern.exec(text)) !== null) {
         const dayNumber = parseInt(dayMatch[1]);
 
-        // Try to extract day title
         const dayTitlePattern = new RegExp(`"day":\\s*${dayNumber}[^}]*"title":\\s*"([^"]+)"`, 'i');
         const dayTitleMatch = text.match(dayTitlePattern);
 
@@ -326,8 +309,30 @@ function createEnhancedFallbackStructure(text) {
     };
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Coordinate processing – NEW                                               */
+/* -------------------------------------------------------------------------- */
+async function geocodeItineraryCoordinates(itinerary) {
+    const processed = { ...itinerary };
+    for (const day of processed.days) {
+        for (const activity of day.activities) {
+            try {
+                const coords = await getOpenStreetMapCoordinates(activity.location);
+                activity.coordinates = { lat: coords.lat, lng: coords.lng };
+            } catch (e) {
+                console.error(`Failed to geocode "${activity.location}": ${e.message}`);
+                // Fallback placeholder – not a real coordinate
+                activity.coordinates = { lat: 0, lng: 0 };
+            }
+        }
+    }
+    return processed;
+}
+
+
 /**
- * IMPROVED version with retry logic and better error handling
+ * IMPROVED version with retry logic and better error handling for generating itineraries
+ * This function will now use queryOpenRouter instead of queryGemini.
  * @param {Object} travelData - Travel request data from Express server
  * @returns {Promise<Object>} - Multiple travel itinerary responses
  */
@@ -342,17 +347,15 @@ async function generateMultipleTravelItinerariesSeparate(travelData) {
             numItineraries = 3
         } = travelData;
 
-        // Validate required fields
         if (!source || !destination || !days) {
             throw new Error('Source, destination, and number of days are required');
         }
 
         const actualNumItineraries = Math.min(Math.max(numItineraries, 2), 3);
-
         const itineraryThemes = [
             {
                 theme: "Adventure Explorer Route",
-                focus: "Maximum adventure and off-road experiences with challenging terrain, extreme sports, and wilderness camping",
+                focus: "Maximum adventure and off‑road experiences with challenging terrain, extreme sports, and wilderness camping",
                 style: "challenging"
             },
             {
@@ -369,9 +372,7 @@ async function generateMultipleTravelItinerariesSeparate(travelData) {
 
         const results = [];
         const rawContents = [];
-        const errors = [];
 
-        // Process each itinerary with retry logic
         for (let i = 0; i < actualNumItineraries; i++) {
             const currentTheme = itineraryThemes[i];
             let success = false;
@@ -380,41 +381,37 @@ async function generateMultipleTravelItinerariesSeparate(travelData) {
 
             while (!success && attempts < maxAttempts) {
                 attempts++;
-
                 try {
-                    // Enhanced prompt with explicit JSON formatting instructions
+                    // --------- PROMPT (NO COORDINATES REQUESTED) ----------
                     const userPrompt = `Generate 1 travel itinerary for a ${days} day ${travelMode} tour to ${destination} starting from ${source}.
 
 ITINERARY THEME: ${currentTheme.theme}
 FOCUS: ${currentTheme.focus}
 DIFFICULTY: ${currentTheme.style}
 
-This should be itinerary #${i + 1} of ${actualNumItineraries}, so make it UNIQUE and different from typical routes.
+Make it itinerary #${i + 1} of ${actualNumItineraries} and unique.
 
 Key requirements:
-- Focus on the specified theme above
-- Include off-beat and lesser-known destinations
-- Suggest scenic routes appropriate for the difficulty level
-- Incorporate experiences matching the theme
-- Provide detailed waypoints with coordinates
-- Include activities suitable for the theme
-- Detailed timing and distance information
-- Budget estimates and practical tips
-- Accommodation suggestions matching the theme
-- For each activity, include exact GPS coordinates (latitude and longitude)
-- Include entry fees or costs for each activity (write "Free" if no charge)
-- If an activity requires booking or permission (wildlife sanctuaries, permits, guided tours), set booking_required to true and provide contact details
-- If no booking is needed, set booking_required to false and booking_info to null
+- Focus on the above theme.
+- Include off‑beat destinations.
+- Suggest scenic routes matching the difficulty.
+- Provide detailed timings and distances.
+- Include budget estimates.
+- For each activity, give:
+  * exact location name (do NOT add coordinates)
+  * entry fee ("Free" if none)
+  * booking_required flag + booking_info when true
+- Return ONLY valid JSON, start with { and end with }.
 
 Additional preferences: ${preferences.length > 0 ? preferences.join(', ') : 'None specified'}
 
-CRITICAL FORMATTING INSTRUCTIONS:
-1. Return ONLY valid JSON - no markdown, no explanations, no code blocks
-2. Start response with { and end with }
-3. Use proper JSON syntax with double quotes
-4. Do not include any text before or after the JSON object
+CRITICAL FORMATTING:
+1. ONLY JSON – no markdown, no explanations, no code fences.
+2. Start with { and end with }.
+3. Use double quotes throughout.
+4. No extra text before/after JSON.
 
-Required JSON structure:
+Required structure:
 {
   "id": ${i + 1},
   "title": "${currentTheme.theme}",
@@ -424,158 +421,129 @@ Required JSON structure:
     "startLocation": "${source}",
     "endLocation": "${destination}",
     "travelMode": "${travelMode}",
-    "totalDistance": "approximate distance",
-    "estimatedBudget": "budget range",
+    "totalDistance": "approx.",
+    "estimatedBudget": "range",
     "difficulty": "${currentTheme.style}"
   },
   "days": [
     {
       "day": 1,
       "title": "Day title",
-      "route": "Route description",
-      "distance": "distance in km",
-      "coordinates": {
-        "start": { "lat": 0.0, "lng": 0.0 },
-        "end": { "lat": 0.0, "lng": 0.0 }
-      },
+      "route": "Brief route description",
+      "distance": "km",
       "activities": [
         {
           "time": "09:00",
           "title": "Activity name",
-          "description": "Brief description",
-          "location": "Location name",
-          "coordinates": { "lat": 0.0, "lng": 0.0 },
+          "description": "Short description",
+          "location": "Exact location name",
           "duration_minutes": 60,
-          "entry_fee": "INR 50 or Free",
+          "entry_fee": "Free or INR 50",
           "booking_required": true,
           "booking_info": {
-            "contact_phone": "+91-XXXXXXXXXX",
+            "contact_phone": "+91‑XXXXXXXXXX",
             "contact_email": "email@example.com",
             "website": "https://example.com",
             "advance_booking_days": 1,
-            "notes": "Book online or arrive early"
+            "notes": "Book early"
           }
         }
       ],
-      "accommodation": "accommodation suggestion",
-      "meals": "meal suggestions",
-      "budget": "daily budget estimate",
-      "highlights": ["highlight1", "highlight2"]
+      "accommodation": "Suggestion",
+      "meals": "Suggestion",
+      "budget": "Daily budget"
     }
   ]
 }`;
 
-const systemPrompt = `You are an expert travel planner. You MUST respond with valid JSON only.
+                    const systemPrompt = `You are a travel‑planning expert.
+Return ONLY valid JSON.
+- No markdown or explanatory text.
+- Use proper JSON syntax.
+- Include location names (not coordinates).
+- Include entry fees.
+- Include booking_info when booking_required is true.
+Create a ${currentTheme.style} itinerary focused on: ${currentTheme.focus}`;
 
-CRITICAL RULES:
-- NO markdown formatting (no \`\`\`json or \`\`\`)
-- NO explanatory text before or after JSON
-- NO code blocks
-- Start with { and end with }
-- Use proper JSON syntax with double quotes
-- Ensure all strings are properly escaped
-- Always include real GPS coordinates for every activity location
-- Always include entry fees (use "Free" if none)
-- Always include booking_info when booking_required is true, set to null otherwise
+                    console.log(`🚀 Attempt ${attempts} – itinerary ${i + 1}`);
 
-Create a ${currentTheme.style} difficulty itinerary focused on: ${currentTheme.focus}`;
-
-                    console.log(`Attempting to generate itinerary ${i + 1}, attempt ${attempts}`);
-
-                    const response = await queryGemini(userPrompt, {
+                    const openRouterResponse = await queryOpenRouter(userPrompt, {
                         systemPrompt,
-                        model: process.env.MODEL_AI,
+                        model: process.env.OPENROUTER_MODEL,
                         maxTokens: 6000,
-                        temperature: 0.2 + (attempts * 0.1) // Reduce temperature on retries
-                    });
+                        temperature: 0.2 + attempts * 0.1                    });
 
-                    const rawContent = extractMessageContent(response);
-                    if (!rawContent) {
-                        throw new Error('No content extracted from response');
-                    }
+                    const rawContent = extractMessageContent(openRouterResponse);
+                    if (!rawContent) throw new Error('No content extracted from OpenRouter response');
 
                     rawContents.push(rawContent);
 
-                    const parsedItinerary = parseMultipleItinerariesJSON(rawContent);
-
-                    if (parsedItinerary.success) {
-                        console.log(`Successfully generated itinerary ${i + 1} on attempt ${attempts}`);
-                        results.push(parsedItinerary.data);
+                    const parsed = parseMultipleItinerariesJSON(rawContent);
+                    if (parsed.success) {
+                        console.log(`✅ Itinerary ${i + 1} parsed successfully`);
+                        results.push(parsed.data);
                         success = true;
                     } else {
-                        console.log(`Failed to parse itinerary ${i + 1}, attempt ${attempts}: ${parsedItinerary.error}`);
-
+                        console.log(`❌ Parse failed: ${parsed.error}`);
                         if (attempts === maxAttempts) {
-                            // Use enhanced fallback on final attempt
-                            console.log(`Using enhanced fallback for itinerary ${i + 1}`);
+                            console.log('⚠️ Using enhanced fallback');
                             results.push({
                                 id: i + 1,
                                 title: currentTheme.theme,
                                 theme: currentTheme.focus,
-                                error: "Failed to parse after multiple attempts",
-                                parseInfo: parsedItinerary,
-                                fallbackData: parsedItinerary.fallbackData,
-                                rawContent: rawContent
-                            });
-                            success = true; // Mark as success to continue
+                                error: 'Parse failure – fallback used',
+                                fallbackData: parsed,
+                                rawContent                            });
+                            success = true;
                         } else {
-                            // Wait before retry
-                            await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
+                            await new Promise(r => setTimeout(r, 2000 * attempts));
                         }
                     }
 
-                } catch (requestError) {
-                    console.log(`Request error for itinerary ${i + 1}, attempt ${attempts}: ${requestError.message}`);
-                    errors.push({
-                        itinerary: i + 1,
-                        attempt: attempts,
-                        error: requestError.message
-                    });
-
+                } catch (err) {
+                    console.error(`🚨 Request error (attempt ${attempts}): ${err.message}`);
+                    errors?.push({ itinerary: i + 1, attempt: attempts, error: err.message });
                     if (attempts === maxAttempts) {
-                        // Create basic fallback structure
                         results.push({
                             id: i + 1,
                             title: currentTheme.theme,
                             theme: currentTheme.focus,
-                            error: "Request failed after multiple attempts",
-                            requestError: requestError.message,
-                            fallbackData: {
-                                type: "error_fallback",
-                                message: "Failed to generate itinerary due to API issues"
-                            }
+                            error: 'API request exhausted',
+                            requestError: err.message,
+                            fallbackData: { type: 'error_fallback' }
                         });
                         success = true;
                     } else {
-                        // Wait before retry
-                        await new Promise(resolve => setTimeout(resolve, 3000 * attempts));
+                        await new Promise(r => setTimeout(r, 3000 * attempts));
                     }
                 }
             }
 
-            // Small delay between different itineraries
-            if (i < actualNumItineraries - 1) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
+            // small pause between different itineraries
+            if (i < actualNumItineraries - 1) await new Promise(r => setTimeout(r, 1000));
         }
 
-        // Calculate success statistics
-        const successfulItineraries = results.filter(it => !it.error).length;
-        const partialSuccessItineraries = results.filter(it => it.error && it.fallbackData).length;
+        // ----------- COORDINATE GEOCODING (NEW) -----------------
+        const finalItineraries = await Promise.all(
+            results.map(it => geocodeItineraryCoordinates(it))
+        );
+        results = finalItineraries;
+
+        // ----------- GATHER STATS -----------------
+        const successful = results.filter(it => !it.error).length;
+        const partial = results.filter(it => it.error && it.fallbackData).length;
 
         return {
             success: true,
             data: {
-                itineraries: {
-                    itineraries: results
-                },
+                itineraries: { itineraries: results },
                 rawItineraries: rawContents,
                 parseInfo: {
                     totalGenerated: results.length,
-                    successfullyParsed: successfulItineraries,
-                    partialSuccess: partialSuccessItineraries,
-                    totalErrors: errors.length,
-                    errors: errors
+                    successfullyParsed: successful,
+                    partialSuccess: partial,
+                    totalErrors: (errors ?? []).length,
+                    errors: errors ?? []
                 },
                 travelDetails: {
                     source,
@@ -587,18 +555,14 @@ Create a ${currentTheme.style} difficulty itinerary focused on: ${currentTheme.f
                 }
             }
         };
-
-    } catch (error) {
-        return {
-            success: false,
-            error: error.message,
-            data: null
-        };
+    } catch (err) {
+        return { success: false, error: err.message, data: null };
     }
 }
 
+
 /**
- * Generate multiple travel itineraries using Gemini (uses improved separate method)
+ * Generate multiple travel itineraries using OpenRouter (uses improved separate method)
  * @param {Object} travelData - Travel request data
  * @returns {Promise<Object>} - Multiple travel itinerary responses
  */
@@ -607,56 +571,49 @@ async function generateMultipleTravelItineraries(travelData) {
 }
 
 /**
- * Generate single travel itinerary using Gemini (legacy function - kept for backward compatibility)
+ * Generate single travel itinerary using OpenRouter (legacy function - kept for backward compatibility)
  * @param {Object} travelData - Travel request data from Express server
  * @returns {Promise<Object>} - Travel itinerary response
  */
 async function generateTravelItinerary(travelData) {
-    const multipleResult = await generateMultipleTravelItineraries({
-        ...travelData,
-        numItineraries: 1
-    });
-
-    if (multipleResult.success && multipleResult.data.itineraries && multipleResult.data.itineraries.itineraries) {
-        const firstItinerary = multipleResult.data.itineraries.itineraries[0];
-        return {
-            success: true,
-            data: {
-                ...multipleResult.data,
-                itinerary: firstItinerary,
-                allItineraries: multipleResult.data.itineraries
-            }
-        };
-    }
-
-    return multipleResult;
+    const single = await generateMultipleTravelItineraries({ ...travelData, numItineraries: 1 });
+    if (!single.success) return single;
+    const first = single.data.itineraries.itineraries[0];
+    return {
+        success: true,
+        data: {
+            ...single.data,
+            itinerary: first,
+            allItineraries: single.data.itineraries
+        }
+    };
 }
 
+
 /**
- * Process data from Express server and query Gemini
+ * Process data from Express server and query OpenRouter
  * @param {Object} data - Data received from Express server
  * @param {Object} promptConfig - Configuration for building the prompt
  * @returns {Promise<Object>} - Processed response
  */
-async function processDataWithGemini(data, promptConfig = {}) {
+async function processDataWithOpenRouter(data, promptConfig = {}) {
     try {
         const {
-            basePrompt = "Please analyze the following data:",
-            instructions = "Provide a comprehensive analysis.",
-            format = "json"
+            basePrompt = 'Please analyze the following data:',
+            instructions = 'Provide a comprehensive analysis.',
+            format = 'json'
         } = promptConfig;
 
         const dataString = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
-
         const userPrompt = `${basePrompt}\n\nData:\n${dataString}\n\nInstructions: ${instructions}`;
 
         const systemPrompt = format === 'json'
-            ? "You are a helpful assistant that analyzes data and provides responses in JSON format when requested."
-            : "You are a helpful assistant that analyzes data and provides clear, structured responses.";
+            ? 'You are an expert travel planner that responds with valid JSON only.'
+            : 'You are a helpful assistant that analyzes data and provides clear, structured responses.';
 
-        const response = await queryGemini(userPrompt, {
+        const response = await queryOpenRouter(userPrompt, {
             systemPrompt,
-            model: 'gemini-2.5-flash',
+            model: MODEL_AI,
             maxTokens: 1500,
             temperature: 0.7
         });
@@ -666,24 +623,20 @@ async function processDataWithGemini(data, promptConfig = {}) {
             data: {
                 fullResponse: response,
                 message: extractMessageContent(response),
-                tokenUsage: response.usageMetadata || null
+                tokenUsage: response.usage || null
             }
         };
-
-    } catch (error) {
-        return {
-            success: false,
-            error: error.message,
-            data: null
-        };
+    } catch (err) {
+        return { success: false, error: err.message, data: null };
     }
 }
 
+
 module.exports = {
-    queryGemini,
+    queryOpenRouter,
     extractMessageContent,
     parseMultipleItinerariesJSON,
-    processDataWithGemini,
+    processDataWithOpenRouter, // Renamed to reflect OpenRouter usage
     generateTravelItinerary,
     generateMultipleTravelItineraries,
     generateMultipleTravelItinerariesSeparate
