@@ -18,6 +18,7 @@ const utilityRoutes = require('./routes/utilityRoutes');
 const healthRoutes= require('./routes/healthRoutes');
 const riderStatsRoutes = require('./routes/riderStatsRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
+const waitlistRoutes = require('./routes/waitlistRoutes');
 
 const helmet = require('helmet');
 const cors = require('cors');
@@ -88,6 +89,7 @@ app.use('/api/fuel', fuelPriceRoutes);
 app.use('/api/utility', utilityRoutes);
 app.use('/api/getRiderStats', riderStatsRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/waitlist', waitlistRoutes);
 
 app.get('/', (req, res) => {
     res.json({

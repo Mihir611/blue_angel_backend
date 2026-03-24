@@ -1,7 +1,7 @@
 const ItineraryRequest = require('../models/ItineraryRequest');
 const Itinerary = require('../models/ItinerarySchema');
 const Master = require('../models/ItineraryMaster');
-const { generateMultipleTravelItineraries } = require('../utils/gpthelper');
+const { generateMultipleTravelItineraries } = require('../utils/gpthelper-openRouter');
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 const Bikes = require('../models/Bikes');
 

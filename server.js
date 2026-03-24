@@ -13,6 +13,10 @@ const bikeRoutes = require('./routes/bikeRoutes');
 const fuelPriceRoutes = require('./routes/fuelRoutes');
 const weatherRoutes = require('./routes/weatherConditionRoutes');
 const utilityRoutes = require('./routes/utilityRoutes');
+const healthRoutes= require('./routes/healthRoutes');
+const riderStatsRoutes = require('./routes/riderStatsRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
+const waitlistRoutes = require('./routes/waitlistRoutes');
 const helmet = require('helmet');
 const cors = require('cors');
 let dbRead = false;
@@ -41,6 +45,7 @@ app.use(cors({
 app.notifyUser = webhookController.sendUserNotification;
 
 // Routes
+app.use('/api/healthCheck', healthRoutes);
 app.use('/api/user', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/home', homeRoutes);
@@ -51,6 +56,9 @@ app.use('/api/bike', bikeRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/fuel', fuelPriceRoutes);
 app.use('/api/utility', utilityRoutes);
+app.use('/api/getRiderStats', riderStatsRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/waitlist', waitlistRoutes);
 
 app.get('/', (req, res) => {
     res.json({

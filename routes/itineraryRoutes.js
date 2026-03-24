@@ -29,6 +29,7 @@ const ItineraryController = require('../controllers/ItineraryMainController');
 const authMiddleware = require('../middleware/authMiddleware');
 
 router.post('/request', authMiddleware.authenticateToken, ItineraryController.createItineraryRequest);
+
 router.get('/request/:requestId', authMiddleware.authenticateToken, ItineraryController.getRequestById);
 router.get('/user/:userEmail', authMiddleware.authenticateToken, ItineraryController.getRequestsByUser);
 // router.get('/:itineraryId', authMiddleware.authenticateToken, ItineraryController.getItineraryById);
