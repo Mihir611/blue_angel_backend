@@ -1,9 +1,9 @@
 const waitList = require('../models/waitlist');
 
 exports.joinWaitlist = async (req, res) => {
-    const { title, userName, email, phone, riderType } = req.body;
+    const { title, name, email, phone, riderType } = req.body;
 
-    if (!title || !userName || !email || !phone) {
+    if (!title || !name || !email || !phone) {
         res.status(400).send({ success: false, message: "Email, FirstNAme, LastName and phone number fields are required" });
 
         try {
@@ -13,7 +13,7 @@ exports.joinWaitlist = async (req, res) => {
             }
             const newWaitlist = new waitList({
                 title: title,
-                userName: userName,
+                userName: name,
                 userEmail: email,
                 contactNumber: Number(phone),
                 riderType: riderType
