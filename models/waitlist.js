@@ -4,7 +4,7 @@ const WaitlistSchema = mongoose.Schema({
     waitlistTitle: { type: String, required: true },
     userEmail: { type: String, required: true, unique: true },
     userName: { type: String, required: true },
-    contactNumber: { type: Number, required: true, default: 0 },
+    contactNumber: { type: String, required: true },
     riderType: { type: String }
 }, { timestamps: true });
 

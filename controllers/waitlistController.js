@@ -1,28 +1,48 @@
 const waitList = require('../models/waitlist');
 
 exports.joinWaitlist = async (req, res) => {
-    const { title, userName, email, phone, riderType } = req.body;
+    try {
+        const { title, name, userEmail, contactNumber, riderType } = req.body;
 
-    if (!title || !userName || !email || !phone) {
-        res.status(400).send({ success: false, message: "Email, FirstNAme, LastName and phone number fields are required" });
-
-        try {
-            const list = await waitList.exists({ userEmail: userEmail, title: title });
-            if (list) {
-                res.status(409).send({ status: false, message: "You are already on the waitlist" });
-            }
-            const newWaitlist = new waitList({
-                title: title,
-                userName: userName,
-                userEmail: email,
-                contactNumber: Number(phone),
-                riderType: riderType
+        // ✅ Validate input
+        if (!title || !name || !userEmail || !contactNumber) {
+            return res.status(400).json({
+                success: false,
+                message: "Email, Name and phone number are required"
             });
-            await newWaitlist.save();
-            res.status(200).send({ success: true, message: 'You have successfully enterd the waiting room' });
-        } catch (error) {
-            console.log("Waitlist Error:", error);
-            res.status(500).send({ success: false, message: "Internal Server Error" });
         }
+
+        // ✅ Check if already exists
+        const list = await waitList.exists({ userEmail, title });
+        if (list) {
+            return res.status(409).json({
+                success: false,
+                message: "You are already on the waitlist"
+            });
+        }
+
+        // ✅ Create new entry
+        const newWaitlist = new waitList({
+            waitlistTitle: title,
+            userName: name,
+            userEmail,
+            contactNumber: contactNumber,
+            riderType
+        });
+
+        await newWaitlist.save();
+
+        // ✅ Send success response
+        return res.status(200).json({
+            success: true,
+            message: "You have successfully entered the waiting room"
+        });
+
+    } catch (error) {
+        console.log("Waitlist Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
     }
-}
+};
