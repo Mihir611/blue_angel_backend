@@ -26,6 +26,7 @@ let dbRead = false;
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use(async (req, res, next) => {
     if (!dbRead) {
