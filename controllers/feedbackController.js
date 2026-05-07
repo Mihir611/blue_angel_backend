@@ -9,7 +9,10 @@ exports.postFeedback = async (req, res) => {
         return res.status(400).json({ success: false, message: 'User email is required' });
     }
 
-    if (!appFeedbackData && !itineraryFeedbackData) {
+    const hasAppFeedback = appFeedbackData && Object.keys(appFeedbackData).length > 0;
+    const hasItineraryFeedback = itineraryFeedbackData && Object.keys(itineraryFeedbackData).length > 0;
+
+    if (!hasAppFeedback && !hasItineraryFeedback) {
         return res.status(400).json({ success: false, message: 'At least one feedback type (app or itinerary) must be provided' });
     }
 
@@ -20,33 +23,28 @@ exports.postFeedback = async (req, res) => {
         }
 
         const results = {};
-        //Handelling app feedback
-        if (appFeedbackData) {
-            const { rating, message, easeOfUse, wouldRecommend } = appFeedbackData;
 
-            if (!rating || !message) {
-                return res.status(400).json({ success: false, message: 'App feedback requires both rating and message' });
-            }
+        if (hasAppFeedback) {
+            const { overallExp, navigation, performance, design, message } = appFeedbackData;
 
             const newAppFeedback = new appFeedback({
                 user: user.userId,
-                rating,
-                message,
-                easeOfUse,
-                wouldRecommend
+                overallExp,
+                navigation,
+                performance,
+                design,
+                message
             });
 
-            const savedAppFeedabck = await newAppFeedback.save();
-            results.appFeedback = savedAppFeedabck;
+            results.appFeedback = await newAppFeedback.save();
         }
 
-        //Handelling itinerary feedback
-        if (itineraryFeedbackData) {
-            const { itineraryId, itineraryTitle, rating, message, highlights, improvements, wouldFollow, accuracy, roadQuality, sceneryRating, navigationEase, actualDuration, completedItinerary, favoriteStop, safetyRating } = itineraryFeedbackData;
-
-            if (!itineraryId || !rating || !message) {
-                return res.status(400).json({ success: false, message: 'Itinerary feedback requires itineraryId, rating, and message' });
-            }
+        if (hasItineraryFeedback) {
+            const {
+                itineraryId, itineraryTitle, rating, message, highlights,
+                improvements, wouldFollow, accuracy, roadQuality, sceneryRating,
+                navigationEase, actualDuration, completedItinerary, favoriteStop, safetyRating
+            } = itineraryFeedbackData;
 
             const newItineraryFeedback = new itineraryFeedback({
                 user: user.userId,
@@ -67,18 +65,23 @@ exports.postFeedback = async (req, res) => {
                 safetyRating,
             });
 
-            const savedItineraryFeedback = await new newItineraryFeedback.save();
-            results.itineraryFeedback = savedItineraryFeedback;
+            results.itineraryFeedback = await newItineraryFeedback.save();
         }
 
-        return res.status(201).json({ success: true, message: 'Feedback submitted successfully', data: results });
+        const message = hasAppFeedback && hasItineraryFeedback
+            ? 'Both feedbacks submitted successfully'
+            : hasAppFeedback
+                ? 'App feedback submitted successfully'
+                : 'Itinerary feedback submitted successfully';
+
+        return res.status(201).json({ success: true, message, data: results });
+
     } catch (error) {
         if (error.name === 'ValidationError') {
             const validationErrors = Object.values(error.errors).map((e) => e.message);
             return res.status(400).json({ success: false, message: 'Validation failed', errors: validationErrors });
         }
 
-        // Handle invalid ObjectId format for itineraryId
         if (error.name === 'CastError') {
             return res.status(400).json({ success: false, message: `Invalid format for field: ${error.path}` });
         }
@@ -86,7 +89,7 @@ exports.postFeedback = async (req, res) => {
         console.error('Feedback submission error:', error);
         return res.status(500).json({ success: false, message: 'An error occurred while submitting feedback' });
     }
-}
+};
 
 exports.getFeedback = async (req, res) => {
     const { userEmail } = req.query;
@@ -100,15 +103,18 @@ exports.getFeedback = async (req, res) => {
         }
 
         const [appFeedbacks, itineraryFeedbacks] = await Promise.all([
-            appFeedback, find({ user: user.userId }).select('rating message - _id').lean(),
-            itineraryFeedback.find({ user: user.userId }).select('rating message itineraryTitle - _id').lean(),
+            appFeedback.find({ user: user.userId }).select('rating message -_id').lean(),
+            itineraryFeedback.find({ user: user.userId }).select('rating message itineraryTitle -_id').lean(),
         ]);
 
-        if (!appFeedbacks.length && !itineraryFeedbacks.length) {
-            return res.status(404).json({success: false, message: 'No feedback found for this user'});
-        }
-
-        return res.status(200).json({ success: true, data: { appFeedbacks, itineraryFeedbacks } });
+        return res.status(200).json({
+            success: true,
+            data: {
+                hasAppFeedback: appFeedbacks.length > 0,
+                hasItineraryFeedback: itineraryFeedbacks.length > 0,
+            }
+        });
+        
     } catch (error) {
         console.error('Fetch feedback error', error);
         return res.status(500).json({ success: false, message: 'An error occured while fetching feedback' });

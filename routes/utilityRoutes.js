@@ -5,5 +5,6 @@ const utilityCtrl = require('../controllers/utilityController');
 
 router.get('/getRideTips', utilityCtrl.getRideSafetyTips);
 router.get('/getQuickTips', utilityCtrl.getQuickRideTips);
+router.get('/getTips', utilityCtrl.getTips);
 
 module.exports = router;

@@ -199,11 +199,11 @@ exports.createItineraryRequest = async (req, res) => {
 
 exports.getRequestById = async (req, res) => {
     try {
-        const itineraryRequest = await ItineraryRequest.findById(req.params.requestId);
+        const itineraryRequest = await ItineraryRequest.findById(req.query.requestId);
         if (!itineraryRequest) return res.status(404).json({ success: false, message: 'Request not found' });
 
         const [itineraries, master] = await Promise.all([
-            Itinerary.find({ request_id: req.params.requestId }),
+            Itinerary.find({ request_id: req.query.requestId }),
             Master.findOne({ itinerary_request_id: req.params.requestId })
         ]);
 
@@ -216,7 +216,7 @@ exports.getRequestById = async (req, res) => {
 
 exports.getRequestsByUser = async (req, res) => {
     try {
-        const { userEmail } = req.params;
+        const { userEmail } = req.query;
         const { status, page = 1, limit = 10 } = req.query;
 
         const user = await getUserByEmail(userEmail);
@@ -252,7 +252,8 @@ exports.getRequestsByUser = async (req, res) => {
 
 exports.getItineraryById = async (req, res) => {
     try {
-        const itinerary = await Itinerary.findById(req.params.itineraryId).populate('request_id');
+        const itinerary = await Itinerary.findById(req.query.requestId).populate('request_id');
+        console.log(itinerary)
         if (!itinerary) return res.status(404).json({ success: false, message: 'Itinerary not found' });
         return res.status(200).json({ success: true, data: itinerary });
     } catch (error) {
