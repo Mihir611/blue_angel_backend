@@ -1,5 +1,3 @@
-const axios = require('axios');
-
 exports.getPrice = async (req, res) => {
     const { city } = req.query;
 
@@ -8,43 +6,52 @@ exports.getPrice = async (req, res) => {
     }
 
     try {
-        const { data } = await axios.get(
-            'https://fuel-petrol-diesel-live-price-india.p.rapidapi.com/petrol_price_india_city_value/',
-            {
-                headers: {
-                    'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-                    'x-rapidapi-host': 'fuel-petrol-diesel-live-price-india.p.rapidapi.com',
-                    'Content-Type': 'application/json',
-                    'city': city.trim(),
-                },
-                timeout: 10000,
-            }
-        );
+        const url = new URL(`${process.env.SUPPORTING_APU_URL}fuel-price`);
+        url.searchParams.set("city", city.trim());
+        console.log(url);
+        const response = await fetch(url.toString(), {
+            signal: AbortSignal.timeout(10000),
+        });
+
+        const apiData = await response.json();
+
+        if (!response.ok || apiData.detail) {
+            return res.status(404).json({
+                success: false,
+                error: data.detail || `No fuel price data found for "${city}".`,
+            });
+        }
+
+        const cityName = apiData.location;
+
+        // Extract numeric price from "₹102.36" → 102.36
+        const rawPrice = apiData.price_per_litre ?? apiData.average_price_per_litre ?? null;
+        const numericPrice = rawPrice
+            ? parseFloat(rawPrice.replace(/[^\d.]/g, ''))
+            : null;
 
         return res.json({
             success: true,
-            city: city.trim(),
-            date: new Date().toISOString().split("T")[0],
-            source: "rapidapi / fuel-petrol-diesel-live-price-india",
-            data,
+            city: cityName,
+            date: apiData.last_updated ?? new Date().toISOString().split("T")[0],
+            source: apiData.source_url,
+            data: {
+                [cityName]: numericPrice,          // e.g. { "Udupi": 102.36 }
+                'Price_Date(Today)': apiData.last_updated ?? null,
+                Unit: '1 Litre',
+                Currency: 'INR',
+            },
         });
 
     } catch (err) {
-        if (err.response?.status === 403) {
-            return res.status(403).json({
+        if (err.name === "TimeoutError") {
+            return res.status(504).json({
                 success: false,
-                error: "Invalid or missing RapidAPI key.",
+                error: "Request to fuel price service timed out. Please try again.",
             });
         }
 
-        if (err.response?.status === 404) {
-            return res.status(404).json({
-                success: false,
-                error: `City "${city}" not found.`,
-            });
-        }
-
-        console.error(`[Error] ${err.message}`);
+        console.error(`[FuelController Error] ${err.message}`);
         return res.status(500).json({
             success: false,
             error: "Failed to fetch fuel prices. Please try again later.",

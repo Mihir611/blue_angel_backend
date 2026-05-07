@@ -30,8 +30,8 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 router.post('/request', authMiddleware.authenticateToken, ItineraryController.createItineraryRequest);
 router.get('/getItineraries', authMiddleware.authenticateToken, ItineraryController.getItineraries);
-router.get('/request/:requestId', authMiddleware.authenticateToken, ItineraryController.getRequestById);
-router.get('/user/:userEmail', authMiddleware.authenticateToken, ItineraryController.getRequestsByUser);
+router.get('/getItinerary', authMiddleware.authenticateToken, ItineraryController.getItineraryById);
+router.get('/requests', authMiddleware.authenticateToken, ItineraryController.getRequestsByUser);
 // router.get('/:itineraryId', authMiddleware.authenticateToken, ItineraryController.getItineraryById);
 
 module.exports = router;

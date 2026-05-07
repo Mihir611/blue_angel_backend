@@ -6,27 +6,35 @@ const applicationFeedback = new mongoose.Schema({
         ref: "User",
         required: true
     },
-    rating: {
+    overallExp:{
         type: Number,
-        min: 1,
+        min: 0,
         max: 5,
-        required: [true, 'App rating is required'],
+        default: 0
+    },
+    navigation: {
+        type: Number,
+        min: 0,
+        max: 5,
+        default: 0
+    },
+    performance: {
+        type: Number,
+        min: 0,
+        max: 5,
+        default: 0
+    },
+    design: {
+        type: Number,
+        min: 0,
+        max: 5,
+        default: 0
     },
     message: {
         type: String,
         trim: true,
         maxlength: [2000, 'Message cannot exceed 2000 characters'],
         required: [true, 'App feedback message is required'],
-    },
-    easeOfUse: {
-        type: Number,
-        min: 1,
-        max: 5,
-        default: 0,
-    },
-    wouldRecommend: {
-        type: Boolean,
-        default: false,
     },
 }, {timestamp: true});
 

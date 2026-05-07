@@ -222,3 +222,37 @@ exports.getQuickRideTips = async (req, res) => {
         });
     }
 };
+
+exports.getTips = async (req, res) => {
+    try {
+        const sourceUrl = process.env.SUPPORTING_APU_URL + 'tips';
+        const response = await axios.get(sourceUrl);
+        const inputData = response.data;
+
+        if (!inputData?.data || !Array.isArray(inputData.data)) {
+            return res.status(400).json({ error: "Invalid data format" });
+        }
+
+        // Extract all tips into a single flat array
+        const allTips = inputData.data.flatMap(category =>
+            category.tips || []
+        );
+
+        // Optional: Remove duplicates (if any)
+        const uniqueTips = [...new Set(allTips)];
+
+        res.json({
+            success: true,
+            count: uniqueTips.length,
+            tips: uniqueTips
+        });
+    } catch (error) {
+        console.error('Error fetching tips:', error.message);
+
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch or process tips',
+            message: error.message
+        });
+    }
+}
