@@ -1,6 +1,8 @@
 const ItineraryRequest = require('../models/ItineraryRequest');
 const Itinerary = require('../models/ItinerarySchema');
 const Master = require('../models/ItineraryMaster');
+const SelectedItitneraries = require('../models/itinerarySelected');
+const ItineraryFeedback = require('../models/feedback/itineraryFeedback');
 const { generateMultipleTravelItineraries } = require('../utils/gpthelper-openRouter');
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 const Bikes = require('../models/Bikes');
@@ -253,7 +255,6 @@ exports.getRequestsByUser = async (req, res) => {
 exports.getItineraryById = async (req, res) => {
     try {
         const itinerary = await Itinerary.findById(req.query.requestId).populate('request_id');
-        console.log(itinerary)
         if (!itinerary) return res.status(404).json({ success: false, message: 'Itinerary not found' });
         return res.status(200).json({ success: true, data: itinerary });
     } catch (error) {
@@ -277,3 +278,38 @@ exports.getItineraries = async (req, res) => {
         return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
 };
+
+exports.markItitnerariesAsSelected = async (req, res) => {
+    try {
+        const {userEmail, itineraryId, itineraryTitle} = req.body;
+        
+        if(!userEmail || !itineraryId) {
+            return res.status(400).json({ success: false, message: 'Useremail and itineraryId is required'});
+        }
+
+        const user = await getUserByEmail(userEmail);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+        const createRecord = new SelectedItitneraries({
+            user: user.userId,
+            itinerary_id: itineraryId,
+            itinerary_title: itineraryTitle
+        })
+
+        const itineraryFeedbackRecord = new ItineraryFeedback({
+            user: user.userId,
+            itineraryId: itineraryId,
+            itineraryTitle: itineraryTitle
+        })
+
+        const saved = await createRecord.save();
+        const recordCreated = await itineraryFeedbackRecord.save();
+        return res.status(201).json({ success: 'true', message: 'Records saved'});
+    } catch (error) {
+        if(error.code === 11000) {
+             return res.status(409).json({ success: false, message: 'Itinerary already saved by this user' });
+        }
+        console.error('marking itineraries as selected generated an error', error);
+        return res.status(500).json({ success: false, message: 'Internal Server Error'});
+    }
+}
