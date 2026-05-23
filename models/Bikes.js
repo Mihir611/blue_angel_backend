@@ -12,7 +12,8 @@ const BikeSchema = new mongoose.Schema({
         required: true
     },
     odoStatus: { type: String, enum: ['processing', 'done', 'failed'], default: 'processing' },
-    bikeStatus: { type: String, enum: ['primary', 'inUse', 'sold', 'inactive', 'underMaintainance'], default: 'primary' }
+    bikeStatus: { type: String, enum: ['primary', 'inUse', 'sold', 'inactive', 'underMaintainance'], default: 'primary' },
+    bikeNumber: {type: String, required: true}
 }, {
     timestamps: true
 });

@@ -19,6 +19,7 @@ const healthRoutes= require('./routes/healthRoutes');
 const riderStatsRoutes = require('./routes/riderStatsRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const waitlistRoutes = require('./routes/waitlistRoutes');
+const challanRoutes = require('./routes/challansRoutes');
 
 const helmet = require('helmet');
 const cors = require('cors');
@@ -92,6 +93,7 @@ app.use('/api/utility', utilityRoutes);
 app.use('/api/getRiderStats', riderStatsRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/challan', challanRoutes);
 
 app.get('/', (req, res) => {
     res.json({
