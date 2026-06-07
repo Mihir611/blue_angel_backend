@@ -1,5 +1,7 @@
 const Bikes = require('../models/Bikes');
 const User = require('../models/User');
+const Manual = require('../models/filesMaster');
+const { UserXp } = require('../models/achievementsMaster');
 const { hashPassword, validatePassword } = require('../utils/hash')
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 
@@ -29,6 +31,24 @@ exports.getProfile = async (req, res) => {
 		user.bikeName = bike ? bike.bikeName : null;
 		user.bikeManufacturer = bike ? bike.manufacturer : null;
 		user.bikeModel = bike ? bike.model : null;
+
+		// Guard against missing bike before querying manual
+		let userManual = null;
+        if (bike) {
+            userManual = await Manual.findOne({
+                manufacturer: bike.manufacturer,
+                variant: bike.variant,
+                model: bike.model,
+                yearStart: bike.year
+            }).lean();
+        }
+
+		// Attach the fileUrl (or null if no manual found)
+        user.manualUrl = userManual ? userManual.fileUrl : null;
+
+		// Get the xp info for the user
+		const xpInfo = await UserXp.findOne({ user: user.userId });
+		user.experiencePoints = xpInfo
 
 		res.json({
 			success: true,
@@ -154,19 +174,19 @@ exports.getEmergencyContact = async (req, res) => {
 		if (!user.emergencyContact || !user.emergencyContact.contactNumber) {
 			return res.status(404).json({ success: false, message: 'No emergency contact found for this user' });
 		}
-		return res.status(200).json({ 
-			success: true, 
-			message: 'Emergency contacts retrived', 
-			data: { 
-				name: user.firstname + user.lastname, 
-				bloodGroup: user.bloodgroup, 
-				emergencyContact: { 
-					name: user.emergencyContact.name, 
-					relation: user.emergencyContact.relation, 
-					phone: user.emergencyContact.contactNumber 
-				}, 
-				medicalNotes: '' 
-			} 
+		return res.status(200).json({
+			success: true,
+			message: 'Emergency contacts retrived',
+			data: {
+				name: user.firstname + user.lastname,
+				bloodGroup: user.bloodgroup,
+				emergencyContact: {
+					name: user.emergencyContact.name,
+					relation: user.emergencyContact.relation,
+					phone: user.emergencyContact.contactNumber
+				},
+				medicalNotes: ''
+			}
 		});
 	} catch (Error) {
 		console.log(Error);

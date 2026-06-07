@@ -20,6 +20,8 @@ const riderStatsRoutes = require('./routes/riderStatsRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const waitlistRoutes = require('./routes/waitlistRoutes');
 const challanRoutes = require('./routes/challansRoutes');
+const achievementRoutes = require('./routes/achievementRoutes');
+const manualRoutes = require('./routes/fileRoutes');
 
 const helmet = require('helmet');
 const cors = require('cors');
@@ -94,6 +96,8 @@ app.use('/api/getRiderStats', riderStatsRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/challan', challanRoutes);
+app.use('/api/achievements', achievementRoutes);
+app.use('/api/manual', manualRoutes);
 
 app.get('/', (req, res) => {
     res.json({

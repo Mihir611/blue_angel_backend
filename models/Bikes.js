@@ -5,6 +5,7 @@ const BikeSchema = new mongoose.Schema({
     manufacturer: { type: String, required: true },
     model: { type: String, required: true },
     year: { type: Number, required: true },
+    variant: {type: String, required: true},
     KmsDriven: { type: Number, default: 0 },
     owner: {
         type: String,

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const RiderStats = require('../models/RiderStats');
+const { UserXp } = require('../models/achievementsMaster');
 const { hashPassword, validatePassword } = require('../utils/hash');
 const sendEmail = require('../utils/sendEmail');
 const { generateOtp, hashOtp } = require('../utils/otp');
@@ -46,7 +47,6 @@ exports.register = catchAsync(async (req, res) => {
 	const otpHash = hashOtp(otp);
 	const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 	const userId = await generateUniqueUserId();
-	console.log(hash, salt);
 	await User.create({ userId, email, phone, hash, salt, otp: otpHash, otpExpiresAt });
 	await sendEmail(email, "Verify Your Email", `<p>Your OTP is <b>${otp}</b>. It expires in 10 minutes.</p>`);
 
@@ -69,11 +69,11 @@ exports.verifyOtp = catchAsync(async (req, res) => {
 	user.otpExpiresAt = null;
 
 	const tokens = generateTokens(user);
-    user.refreshToken = tokens.refreshToken;
+	user.refreshToken = tokens.refreshToken;
 
 	await user.save();
 	await RiderStats.create({ user: user.userId });
-
+	await UserXp.create({ user: user.userId });
 	res.status(200).json({ Success: true, message: "Email verified successfully", tokens, user: { userId: user.userId, email: user.email } });
 });
 
@@ -109,7 +109,7 @@ exports.login = catchAsync(async (req, res) => {
 	user.refreshToken = tokens.refreshToken;
 	await user.save();
 
-	res.status(200).json({ Success: true, tokens: {...tokens, generatedAt}, user: { userId: user.userId, email: user.email } });
+	res.status(200).json({ Success: true, tokens: { ...tokens, generatedAt }, user: { userId: user.userId, email: user.email } });
 });
 
 exports.forgotPassword = catchAsync(async (req, res) => {
@@ -166,7 +166,7 @@ exports.refreshToken = catchAsync(async (req, res) => {
 		const generatedAt = Date.now();
 		user.refreshToken = tokens.refreshToken;
 		await user.save();
-		res.status(200).json({ Success: true, tokens: {...tokens, generatedAt}, user: { userId: user.userId, email: user.email } });
+		res.status(200).json({ Success: true, tokens: { ...tokens, generatedAt }, user: { userId: user.userId, email: user.email } });
 	} catch (err) {
 		return res.status(403).json({ success: false, message: 'Invalid or expired refresh token' });
 	}
