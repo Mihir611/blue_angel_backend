@@ -17,15 +17,14 @@ const itineraryFeedbackSchema = new mongoose.Schema({
     },
     rating: {
         type: Number,
-        min: 1,
+        min: 0,
         max: 5,
-        required: [true, 'Itinerary rating is required'],
+        default: 0,
     },
     message: {
         type: String,
         trim: true,
         maxlength: [2000, 'Message cannot exceed 2000 characters'],
-        required: [true, 'Itinerary feedback message is required'],
     },
     highlights: {
         type: [String], // things they loved about the itinerary
@@ -41,25 +40,25 @@ const itineraryFeedbackSchema = new mongoose.Schema({
     },
     accuracy: {
         type: Number,
-        min: 1,
+        min: 0,
         max: 5,
         default: 0
     },
     roadQuality: {
         type: Number,
-        min: 1,
+        min: 0,
         max: 5,
         default: 0
     },
     sceneryRating: {
         type: Number,
-        min: 1,
+        min: 0,
         max: 5,
         default: 0
     },
     navigationEase: {
         type: Number,
-        min: 1,
+        min: 0,
         max: 5,
         default: 0
     },
@@ -72,10 +71,10 @@ const itineraryFeedbackSchema = new mongoose.Schema({
 
     safetyRating: {
         type: Number,
-        min: 1,
+        min: 0,
         max: 5,
         default: 0
     },
-}, {timestamp: true});
+}, {timestamps: true});
 
 module.exports = mongoose.model('ItineraryFeedback', itineraryFeedbackSchema);

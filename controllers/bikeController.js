@@ -14,13 +14,14 @@ exports.GetUserBikes = async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        const bikes = await Bike.find({ owner: user.userId }).sort({ createdAt: -1 });
+        const bikes = await Bike.find({ owner: user.userId, bikeStatus: { $ne: 'sold' } }).sort({ createdAt: -1 });
         const formattedResponse = bikes.map(bike => ({
             bikeName: bike.bikeName,
             manufacturer: bike.manufacturer,
             model: bike.model,
             year: bike.year,
-            bikeStatus: bike.bikeStatus
+            bikeStatus: bike.bikeStatus,
+            bikePlate: bike.bikeNumber,
         }));
 
         res.status(200).json({ success: true, bikes: formattedResponse });
@@ -31,7 +32,7 @@ exports.GetUserBikes = async (req, res) => {
 }
 
 exports.AddUserBike = async (req, res) => {
-    const { bikeName, manufacturer, model, year, userEmail } = req.body;
+    const { bikeName, manufacturer, model, year, userEmail, bikePlate } = req.body;
     try {
         if (!bikeName || !manufacturer || !model || !year) {
             return res.status(400).json({
@@ -54,6 +55,7 @@ exports.AddUserBike = async (req, res) => {
             manufacturer,
             model,
             year,
+            bikeNumber: bikePlate,
             owner: user.userId
         });
         await newBike.save();
