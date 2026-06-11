@@ -8,7 +8,6 @@ exports.getPrice = async (req, res) => {
     try {
         const url = new URL(`${process.env.SUPPORTING_APU_URL}fuel-price`);
         url.searchParams.set("city", city.trim());
-        console.log(url);
         const response = await fetch(url.toString(), {
             signal: AbortSignal.timeout(10000),
         });
