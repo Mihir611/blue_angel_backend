@@ -18,10 +18,14 @@ const selectedItinerarySchema = new mongoose.Schema(
             type: String,
             required: true,
             trim: true
+        },
+        itineraryStatus: {
+            type: String,
+            enum: ['Selected', 'Completed', 'Expired'],
         }
     }, {
-        timestamps: {createsdAt: 'created_at', updatedAt: 'updated_at'}
-    }
+    timestamps: { createsdAt: 'created_at', updatedAt: 'updated_at' }
+}
 );
 
 selectedItinerarySchema.index({ user: 1 });

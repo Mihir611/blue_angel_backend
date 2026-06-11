@@ -88,7 +88,7 @@ exports.RegisterEvent = async (req, res) => {
         await registration.save();
 
         // Get full registration details with populated references
-        const fullRegistration = await registration.getFullRegistrationDetails();
+        const fullRegistration = await registration.getFullDetails();
 
         res.status(201).json({
             success: true,

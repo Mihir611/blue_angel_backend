@@ -23,7 +23,7 @@ exports.getProfile = async (req, res) => {
 		}
 
 		// Get the latest bike - using user._id instead of email for better performance
-		const bike = await Bikes.findOne({ owner: user.userId, bikeStatus: 'primary' })
+		const bike = await Bikes.findOne({ owner: user.userId, bikeStatus: { $ne: 'sold' } })
 			.sort({ createdAt: -1 })
 			.lean();
 
@@ -170,7 +170,6 @@ exports.getEmergencyContact = async (req, res) => {
 		if (!user) {
 			return res.status(404).json({ success: false, message: 'User not found' });
 		}
-		console.log(user)
 		if (!user.emergencyContact || !user.emergencyContact.contactNumber) {
 			return res.status(404).json({ success: false, message: 'No emergency contact found for this user' });
 		}

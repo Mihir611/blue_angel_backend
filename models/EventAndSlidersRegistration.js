@@ -1,72 +1,104 @@
 const mongoose = require('mongoose');
 
-const eventsSlidersRegistrationSchema = new mongoose.Schema({
-    userId: { type: String, required: true, trim: true},
-    registrationType: { type: String, enum: ['event', 'slider'], required: true },
-    eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Events', required: function () { return this.registrationType === 'event'; } },
-    sliderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sliders', required: function () { return this.registrationType === 'slider'; } },
-    registrationDate: { type: Date, default: Date.now },
-    status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'completed'], default: 'pending' },
-    notes: { type: String, trim: true },
-    contactInfo: { phone: { type: String, trim: true } },
-    isActive: { type: Boolean, default: true },
-    createAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
-}, { timestamps: true });
+const registrationSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    registrationType: {
+      type: String,
+      enum: ['event', 'slider'],
+      required: true,
+    },
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Events',
+      required: function () {
+        return this.registrationType === 'event';
+      },
+    },
+    sliderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Sliders',
+      required: function () {
+        return this.registrationType === 'slider';
+      },
+    },
+    registrationDate: {
+      type: Date,
+      default: Date.now,
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'confirmed', 'cancelled', 'completed'],
+      default: 'pending',
+    },
+    notes: {
+      type: String,
+      trim: true,
+    },
+    contactInfo: {
+      phone: { type: String, trim: true },
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true, // auto-manages createdAt and updatedAt
+  }
+);
 
-// Indexes
-eventsSlidersRegistrationSchema.index({ userId: 1, registrationType: 1 });
-eventsSlidersRegistrationSchema.index({ eventId: 1 });
-eventsSlidersRegistrationSchema.index({ sliderId: 1 });
-eventsSlidersRegistrationSchema.index({ registrationDate: 1 });
-eventsSlidersRegistrationSchema.index({ status: 1 });
+// --- Indexes ---
+registrationSchema.index({ userId: 1, registrationType: 1 });
+registrationSchema.index({ eventId: 1 });
+registrationSchema.index({ sliderId: 1 });
+registrationSchema.index({ registrationDate: 1 });
+registrationSchema.index({ status: 1 });
 
-// unique registration per user event/slider
-eventsSlidersRegistrationSchema.index({
-    userId: 1, eventId: 1, sliderId: 1
-}, { unique: true, sparse: true });
+// Prevents duplicate registrations for the same user + event/slider combo
+registrationSchema.index(
+  { userId: 1, eventId: 1, sliderId: 1 },
+  { unique: true, sparse: true }
+);
 
-//pre save middleware to update updatedAt field
-eventsSlidersRegistrationSchema.pre('save', function (next) {
-    this.updatedAt = Date.now();
-    next();
-});
+// --- Instance Methods ---
 
-// Method to get the registration details with populated references
-eventsSlidersRegistrationSchema.methods.getFullRegistrationDetails = function () {
-    const populateFields = [
-        {
-            path: 'userId',
-            select: 'email username firstname lastname profilePicture'
-        }
-    ];
+// Returns the document populated with user + event or slider details
+registrationSchema.methods.getFullDetails = function () {
+  const populate = [
+    { path: 'userId', select: 'email username firstname lastname profilePicture' },
+  ];
 
-    if (this.registrationType === 'event') {
-        populateFields.push('eventId');
-    } else if (this.registrationType === "slider") {
-        populateFields.push('sliderId');
-    }
+  if (this.registrationType === 'event') {
+    populate.push({ path: 'eventId' });
+  } else {
+    populate.push({ path: 'sliderId' });
+  }
 
-    return this.populate(populateFields);
+  return this.populate(populate);
 };
 
-// method to find registration by event
-eventsSlidersRegistrationSchema.statics.findByUserId = function (userId, type = null) {
-    const query = { userId, isActive: true };
-    if (type) {
-        query.registrationType = type;
-    }
-    return this.find(query);
+// --- Static Methods ---
+
+// Find all active registrations for a user, optionally filtered by type
+registrationSchema.statics.findByUserId = function (userId, type = null) {
+  const query = { userId, isActive: true };
+  if (type) query.registrationType = type;
+  return this.find(query);
 };
 
-// find registration by event
-eventsSlidersRegistrationSchema.statics.findByEvent = function (eventId) {
-    return this.find({ eventId, isActive: true });
+// Find all active registrations for a specific event
+registrationSchema.statics.findByEvent = function (eventId) {
+  return this.find({ eventId, isActive: true });
 };
 
-// find registration by slider
-eventsSlidersRegistrationSchema.statics.findBySlider = function (sliderId) {
-    return this.find({ sliderId, isActive: true });
+// Find all active registrations for a specific slider
+registrationSchema.statics.findBySlider = function (sliderId) {
+  return this.find({ sliderId, isActive: true });
 };
 
-module.exports = mongoose.model('EventsSliderRegistration', eventsSlidersRegistrationSchema);
+module.exports = mongoose.model('EventsSliderRegistration', registrationSchema);

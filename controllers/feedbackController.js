@@ -2,6 +2,66 @@ const appFeedback = require('../models/feedback/appFeedbackSchema');
 const itineraryFeedback = require('../models/feedback/itineraryFeedback');
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 
+exports.postFeedback = async (req, res) => {
+    const { userEmail, appFeedbackData, itineraryFeedbackData } = req.body;
+
+    if (!userEmail) {
+        return res.status(400).json({ success: false, message: 'User email is required' });
+    }
+
+    const hasApp = appFeedbackData && Object.keys(appFeedbackData).length > 0;
+    const hasItinerary = itineraryFeedbackData && Object.keys(itineraryFeedbackData).length > 0;
+
+    if (!hasApp && !hasItinerary) {
+        return res.status(400).json({ success: false, message: 'At least one of appFeedbackData or itineraryFeedbackData is required' });
+    }
+
+    const results = {};
+    const errors = {};
+
+    if (hasApp) {
+        // Delegate by calling the handler logic directly via a mock req/res
+        await new Promise((resolve) => {
+            const mockRes = {
+                status(code) { this._code = code; return this; },
+                json(data) {
+                    if (this._code >= 400) errors.app = data;
+                    else results.app = data;
+                    resolve();
+                }
+            };
+            exports.postAppFeedback({ body: { userEmail, appFeedbackData } }, mockRes);
+        });
+    }
+
+    if (hasItinerary) {
+        await new Promise((resolve) => {
+            const mockRes = {
+                status(code) { this._code = code; return this; },
+                json(data) {
+                    if (this._code >= 400) errors.itinerary = data;
+                    else results.itinerary = data;
+                    resolve();
+                }
+            };
+            exports.createItineraryFeedback({ body: { userEmail, itineraryFeedbackData } }, mockRes);
+        });
+    }
+
+    const hasErrors = Object.keys(errors).length > 0;
+    const hasResults = Object.keys(results).length > 0;
+
+    if (hasErrors && !hasResults) {
+        return res.status(400).json({ success: false, message: 'Feedback submission failed', errors });
+    }
+
+    if (hasErrors && hasResults) {
+        return res.status(207).json({ success: true, message: 'Partial feedback submitted', data: results, errors });
+    }
+
+    return res.status(201).json({ success: true, message: 'Feedback submitted successfully', data: results });
+};
+
 exports.postAppFeedback = async (req, res) => {
     const { userEmail, appFeedbackData } = req.body;
 
@@ -47,7 +107,7 @@ exports.postAppFeedback = async (req, res) => {
     }
 };
 
-exports.updateItineraryFeedback = async (req, res) => {
+exports.createItineraryFeedback = async (req, res) => {
     const { userEmail, itineraryFeedbackData } = req.body;
 
     if (!userEmail) {
@@ -75,11 +135,7 @@ exports.updateItineraryFeedback = async (req, res) => {
             itineraryId
         });
 
-        if (!existingFeedback) {
-            return res.status(404).json({ success: false, message: 'Feedback record not found for this itinerary' });
-        }
-
-        if (existingFeedback.rating > 0) {
+        if (existingFeedback) {
             return res.status(409).json({ success: false, message: 'Feedback already submitted for this itinerary' });
         }
 
@@ -90,30 +146,42 @@ exports.updateItineraryFeedback = async (req, res) => {
             completedItinerary, favoriteStop, safetyRating
         } = itineraryFeedbackData;
 
-        const updated = await itineraryFeedback.findOneAndUpdate(
-            { user: user.userId, itineraryId },
-            {
-                $set: {
-                    itineraryTitle,
-                    rating,
-                    message,
-                    highlights:         highlights      ?? [],
-                    improvements:       improvements    ?? [],
-                    wouldFollow:        wouldFollow     ?? false,
-                    accuracy,
-                    roadQuality,
-                    sceneryRating,
-                    navigationEase,
-                    actualDuration,
-                    completedItinerary,
-                    favoriteStop,
-                    safetyRating
-                }
-            },
-            { returnDocument: 'after', runValidators: true }
+        const newItineraryFeedback = new itineraryFeedback({
+            user: user.userId,
+            itineraryId,
+            itineraryTitle,
+            rating,
+            message,
+            highlights: highlights ?? [],
+            improvements: improvements ?? [],
+            wouldFollow: wouldFollow ?? false,
+            accuracy,
+            roadQuality,
+            sceneryRating,
+            navigationEase,
+            actualDuration,
+            completedItinerary,
+            favoriteStop,
+            safetyRating
+        });
+
+        const saved = await newItineraryFeedback.save();
+        const selectedItineraryUpdate = await SelectedItinerary.findOneAndUpdate(
+            { user: user.userId, itinerary_id: itineraryId },
+            { $set: { itineraryStatus: 'Completed' } },
+            { new: true }
         );
 
-        return res.status(200).json({ success: true, message: 'Itinerary feedback submitted successfully', data: updated });
+        if (!selectedItineraryUpdate) {
+            console.warn(`createItineraryFeedback: no SelectedItinerary found for user ${user.userId}, itinerary ${itineraryId}`);
+        }
+
+        return res.status(201).json({
+            success: true, message: 'Itinerary feedback submitted successfully', data: {
+                feedback: saved,
+                itineraryStatus: selectedItineraryUpdate?.itineraryStatus ?? null
+            }
+        });
 
     } catch (error) {
         if (error.name === 'ValidationError') {
@@ -123,7 +191,7 @@ exports.updateItineraryFeedback = async (req, res) => {
         if (error.name === 'CastError') {
             return res.status(400).json({ success: false, message: `Invalid format for field: ${error.path}` });
         }
-        console.error('putItineraryFeedback error:', error);
+        console.error('createItineraryFeedback error:', error);
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
@@ -151,7 +219,7 @@ exports.getFeedback = async (req, res) => {
                 hasItineraryFeedback: itineraryFeedbacks.length > 0,
             }
         });
-        
+
     } catch (error) {
         console.error('Fetch feedback error', error);
         return res.status(500).json({ success: false, message: 'An error occured while fetching feedback' });
@@ -159,8 +227,8 @@ exports.getFeedback = async (req, res) => {
 }
 
 exports.getUnmarkedFeedbacks = async (req, res) => {
-    const {userEmail} = req.query;
-    if(!userEmail) {
+    const { userEmail } = req.query;
+    if (!userEmail) {
         return res.status(400).json({ success: false, message: 'User email is required' });
     }
     try {
@@ -174,9 +242,9 @@ exports.getUnmarkedFeedbacks = async (req, res) => {
             rating: 0,
         }).lean();
 
-        return res.status(200).json({ success: true, count: pendingFeedbacks.length, data: pendingFeedbacks, message: pendingFeedbacks.length ? 'Pending feedbacks fetched successfully': 'No pending feedbacks'});
+        return res.status(200).json({ success: true, count: pendingFeedbacks.length, data: pendingFeedbacks, message: pendingFeedbacks.length ? 'Pending feedbacks fetched successfully' : 'No pending feedbacks' });
     } catch (error) {
         console.error('Get Unmarked ITineraries Error:', error);
-        return res.status(500).json({ success: false, message: "Internal server error"});
+        return res.status(500).json({ success: false, message: "Internal server error" });
     }
 }

@@ -3,6 +3,7 @@ const Itinerary = require('../models/ItinerarySchema');
 const Master = require('../models/ItineraryMaster');
 const SelectedItitneraries = require('../models/itinerarySelected');
 const ItineraryFeedback = require('../models/feedback/itineraryFeedback');
+const SelectedItinerary = require('../models/itinerarySelected');
 const { generateMultipleTravelItineraries } = require('../utils/gpthelper-openRouter');
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 const Bikes = require('../models/Bikes');
@@ -25,11 +26,11 @@ function buildBookingInfo(raw) {
 
     if (typeof raw === 'object') {
         return {
-            contact_phone:        raw.contact_phone        ? String(raw.contact_phone).trim()        : null,
-            contact_email:        raw.contact_email        ? String(raw.contact_email).trim()        : null,
-            website:              raw.website              ? String(raw.website).trim()               : null,
+            contact_phone: raw.contact_phone ? String(raw.contact_phone).trim() : null,
+            contact_email: raw.contact_email ? String(raw.contact_email).trim() : null,
+            website: raw.website ? String(raw.website).trim() : null,
             advance_booking_days: raw.advance_booking_days != null ? Number(raw.advance_booking_days) : null,
-            notes:                raw.notes                ? String(raw.notes).trim()                 : null
+            notes: raw.notes ? String(raw.notes).trim() : null
         };
     }
 
@@ -46,32 +47,32 @@ function normaliseActivity(act) {
     }
 
     const bookingRequired = Boolean(act.bk?.req ?? act.booking_required ?? false);
-    const bookingRaw      = act.bk ?? act.booking_info ?? null;
+    const bookingRaw = act.bk ?? act.booking_info ?? null;
 
     return {
-        time:             String(act.tm   ?? act.time             ?? '09:00').trim(),
-        title:            String(act.n    ?? act.title            ?? 'Activity').trim() || 'Activity',
-        description:      String(act.desc ?? act.description      ?? '').trim(),
-        location:         String(act.loc  ?? act.location         ?? '').trim(),
+        time: String(act.tm ?? act.time ?? '09:00').trim(),
+        title: String(act.n ?? act.title ?? 'Activity').trim() || 'Activity',
+        description: String(act.desc ?? act.description ?? '').trim(),
+        location: String(act.loc ?? act.location ?? '').trim(),
         duration_minutes: Math.max(0, Number(act.dur ?? act.duration_minutes ?? 60) || 60),
-        entry_fee:        String(act.fee  ?? act.entry_fee        ?? 'Free').trim(),
+        entry_fee: String(act.fee ?? act.entry_fee ?? 'Free').trim(),
         booking_required: bookingRequired,
-        booking_info:     bookingRequired ? buildBookingInfo(bookingRaw) : null
+        booking_info: bookingRequired ? buildBookingInfo(bookingRaw) : null
     };
 }
 
 function normaliseDay(d, idx) {
     return {
-        day:           Math.max(1, Number(d.d ?? d.day ?? idx + 1) || idx + 1),
-        date:          new Date(Date.now() + idx * 86_400_000),
-        title:         String(d.t    ?? d.title         ?? `Day ${idx + 1}`).trim(),
-        route:         String(d.r    ?? d.route         ?? '').trim(),
-        distance:      String(d.distance                ?? '').trim(),
+        day: Math.max(1, Number(d.d ?? d.day ?? idx + 1) || idx + 1),
+        date: new Date(Date.now() + idx * 86_400_000),
+        title: String(d.t ?? d.title ?? `Day ${idx + 1}`).trim(),
+        route: String(d.r ?? d.route ?? '').trim(),
+        distance: String(d.distance ?? '').trim(),
         accommodation: String(d.stay ?? d.accommodation ?? '').trim(),
-        meals:         String(d.meal ?? d.meals          ?? '').trim(),
-        budget:        String(d.db   ?? d.budget         ?? '').trim(),
-        highlights:    Array.isArray(d.highlights) ? d.highlights.map(String) : [],
-        activities:    (d.acts ?? d.activities ?? []).map(normaliseActivity)
+        meals: String(d.meal ?? d.meals ?? '').trim(),
+        budget: String(d.db ?? d.budget ?? '').trim(),
+        highlights: Array.isArray(d.highlights) ? d.highlights.map(String) : [],
+        activities: (d.acts ?? d.activities ?? []).map(normaliseActivity)
     };
 }
 
@@ -81,13 +82,13 @@ function normaliseMeta(raw) {
         title: String(raw.title ?? '').trim(),
         theme: String(raw.theme ?? '').trim(),
         overview: {
-            duration:        ov.days ?? ov.duration        ?? null,
-            totalDistance:   ov.dist ?? ov.totalDistance   ?? '',
-            estimatedBudget: ov.bud  ?? ov.estimatedBudget ?? '',
-            difficulty:      ov.diff ?? ov.difficulty      ?? '',
-            startLocation:   ov.startLocation              ?? '',
-            endLocation:     ov.endLocation                ?? '',
-            travelMode:      ov.travelMode                 ?? ''
+            duration: ov.days ?? ov.duration ?? null,
+            totalDistance: ov.dist ?? ov.totalDistance ?? '',
+            estimatedBudget: ov.bud ?? ov.estimatedBudget ?? '',
+            difficulty: ov.diff ?? ov.difficulty ?? '',
+            startLocation: ov.startLocation ?? '',
+            endLocation: ov.endLocation ?? '',
+            travelMode: ov.travelMode ?? ''
         }
     };
 }
@@ -149,7 +150,7 @@ exports.createItineraryRequest = async (req, res) => {
             });
         }
 
-        const generatedList    = aiResult.data?.itineraries?.itineraries ?? [];
+        const generatedList = aiResult.data?.itineraries?.itineraries ?? [];
         const savedItineraries = [];
 
         for (const raw of generatedList) {
@@ -186,10 +187,10 @@ exports.createItineraryRequest = async (req, res) => {
             success: true,
             message: `${savedItineraries.length} itinerary(s) generated successfully`,
             data: {
-                request:     itineraryRequest,
-                master:      await Master.findById(masterRecord._id),
+                request: itineraryRequest,
+                master: await Master.findById(masterRecord._id),
                 itineraries: savedItineraries,
-                parseInfo:   aiResult.data?.parseInfo ?? {}
+                parseInfo: aiResult.data?.parseInfo ?? {}
             }
         });
 
@@ -218,32 +219,43 @@ exports.getRequestById = async (req, res) => {
 
 exports.getRequestsByUser = async (req, res) => {
     try {
-        const { userEmail } = req.query;
-        const { status, page = 1, limit = 10 } = req.query;
+        const { userEmail, status, page = 1, limit = 10 } = req.query;
 
         const user = await getUserByEmail(userEmail);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
         const filter = { user: user.userId };
-        if (status) filter.status = status;
+        if (status) filter.itineraryStatus = status;
 
-        const [requests, total] = await Promise.all([
-            ItineraryRequest.find(filter).sort({ created_at: -1 }).skip((page - 1) * limit).limit(Number(limit)),
-            ItineraryRequest.countDocuments(filter)
+        const [selectedItineraries, total] = await Promise.all([
+            SelectedItinerary.find(filter)
+                .sort({ created_at: -1 })
+                .skip((page - 1) * limit)
+                .limit(Number(limit))
+                .lean(),
+            SelectedItinerary.countDocuments(filter)
         ]);
 
         const enriched = await Promise.all(
-            requests.map(async (request) => ({
-                request,
-                itineraries: await Itinerary.find({ request_id: request._id })
-            }))
+            selectedItineraries.map(async (selected) => {
+                const itinerary = await Itinerary.findById(selected.itinerary_id).lean();
+                return {
+                    selected,
+                    itinerary: itinerary ?? null
+                };
+            })
         );
 
         return res.status(200).json({
             success: true,
             data: {
                 results: enriched,
-                pagination: { total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / limit) }
+                pagination: {
+                    total,
+                    page: Number(page),
+                    limit: Number(limit),
+                    totalPages: Math.ceil(total / limit)
+                }
             }
         });
     } catch (error) {
@@ -281,10 +293,10 @@ exports.getItineraries = async (req, res) => {
 
 exports.markItitnerariesAsSelected = async (req, res) => {
     try {
-        const {userEmail, itineraryId, itineraryTitle} = req.body;
-        
-        if(!userEmail || !itineraryId) {
-            return res.status(400).json({ success: false, message: 'Useremail and itineraryId is required'});
+        const { userEmail, itineraryId, itineraryTitle } = req.body;
+
+        if (!userEmail || !itineraryId) {
+            return res.status(400).json({ success: false, message: 'Useremail and itineraryId is required' });
         }
 
         const user = await getUserByEmail(userEmail);
@@ -293,7 +305,8 @@ exports.markItitnerariesAsSelected = async (req, res) => {
         const createRecord = new SelectedItitneraries({
             user: user.userId,
             itinerary_id: itineraryId,
-            itinerary_title: itineraryTitle
+            itinerary_title: itineraryTitle,
+            itineraryStatus: 'Selected'
         })
 
         const itineraryFeedbackRecord = new ItineraryFeedback({
@@ -304,12 +317,12 @@ exports.markItitnerariesAsSelected = async (req, res) => {
 
         const saved = await createRecord.save();
         const recordCreated = await itineraryFeedbackRecord.save();
-        return res.status(201).json({ success: 'true', message: 'Records saved'});
+        return res.status(201).json({ success: 'true', message: 'Records saved' });
     } catch (error) {
-        if(error.code === 11000) {
-             return res.status(409).json({ success: false, message: 'Itinerary already saved by this user' });
+        if (error.code === 11000) {
+            return res.status(409).json({ success: false, message: 'Itinerary already saved by this user' });
         }
         console.error('marking itineraries as selected generated an error', error);
-        return res.status(500).json({ success: false, message: 'Internal Server Error'});
+        return res.status(500).json({ success: false, message: 'Internal Server Error' });
     }
 }
