@@ -1,6 +1,5 @@
 exports.getPrice = async (req, res) => {
     const { city } = req.query;
-
     if (!city) {
         return res.status(400).json({ success: false, message: "Missing required query parameter: city", })
     }

@@ -1,6 +1,6 @@
 {
   "name": "blue_angel",
-  "version": "10.4.1",
+  "version": "10.6.1",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

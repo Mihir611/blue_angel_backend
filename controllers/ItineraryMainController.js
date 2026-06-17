@@ -7,6 +7,7 @@ const SelectedItinerary = require('../models/itinerarySelected');
 const { generateMultipleTravelItineraries } = require('../utils/gpthelper-openRouter');
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 const Bikes = require('../models/Bikes');
+const { ExpiryHandelerForItineraries } = require('../utils/itineraryExpiryHandler');
 
 /* -------------------------------------------------------------------------- */
 /*  Normalisers                                                                */
@@ -219,13 +220,12 @@ exports.getRequestById = async (req, res) => {
 
 exports.getRequestsByUser = async (req, res) => {
     try {
-        const { userEmail, status, page = 1, limit = 10 } = req.query;
+        const { userEmail, page = 1, limit = 10 } = req.query;
 
         const user = await getUserByEmail(userEmail);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
+        await ExpiryHandelerForItineraries();
         const filter = { user: user.userId };
-        if (status) filter.itineraryStatus = status;
 
         const [selectedItineraries, total] = await Promise.all([
             SelectedItinerary.find(filter)
