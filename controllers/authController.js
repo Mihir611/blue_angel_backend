@@ -2,11 +2,11 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const RiderStats = require('../models/RiderStats');
 const { UserXp } = require('../models/achievementsMaster');
-const { hashPassword, validatePassword } = require('../utils/hash');
+const { hashPassword, validatePassword, verifyPin, hashPin } = require('../utils/hash');
 const sendEmail = require('../utils/sendEmail');
 const { generateOtp, hashOtp } = require('../utils/otp');
 const { generateTokens } = require('../middleware/authMiddleware');
-const { isDisposableEmail } = require('../utils/validateEmail');
+const { isDisposableEmail, validatePasswordStrength, validatePin } = require('../utils/Validator');
 const catchAsync = require('../utils/catchAsyncHandller');
 
 /* Helper Functions */
@@ -30,11 +30,16 @@ const generateUniqueUserId = async () => {
 }
 
 exports.register = catchAsync(async (req, res) => {
-	const { email, phone, password } = req.body.registrationData;
+	const { email, phone, password, pin } = req.body.registrationData;
 
 	if (isDisposableEmail(email)) {
 		console.log(`Blocked disposable email attempt: ${email}`);
 		return res.status(400).json({ Success: false, message: "Disposable email addresses are not allowed." });
+	}
+
+	const { isValid, message } = validatePasswordStrength(password);
+	if (!isValid) {
+		return res.status(400).json({ Success: false, message });
 	}
 
 	const existingUser = await User.findOne({ email });
@@ -43,11 +48,19 @@ exports.register = catchAsync(async (req, res) => {
 	}
 
 	const { hash, salt } = await hashPassword(password);
+	let pinHash = null, pinSalt = null;
+	if (pin) {
+		const { isValid, message } = isValidPin(pin);
+		if (!isValid) {
+			return res.status(400).json({ Success: false, message });
+		}
+		({ hash: pinHash, salt: pinSalt } = await hashPin(pin));
+	}
 	const otp = generateOtp();
 	const otpHash = hashOtp(otp);
 	const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 	const userId = await generateUniqueUserId();
-	await User.create({ userId, email, phone, hash, salt, otp: otpHash, otpExpiresAt });
+	await User.create({ userId, email, phone, hash, salt, pinHash, pinSalt, otp: otpHash, otpExpiresAt });
 	await sendEmail(email, "Verify Your Email", `<p>Your OTP is <b>${otp}</b>. It expires in 10 minutes.</p>`);
 
 	res.status(201).json({ Success: true, message: "OTP sent to your email" });
@@ -96,13 +109,27 @@ exports.resendOtp = catchAsync(async (req, res) => {
 });
 
 exports.login = catchAsync(async (req, res) => {
-	const { email, password } = req.body;
-	if (!email || !password) return res.status(400).json({ Success: false, message: "Email and password are required" });
+	const { email, password, pin, mode = 'password' } = req.body;
+	if (!email) return res.status(400).json({ Success: false, message: "Email is required" });
 	const user = await User.findOne({ email });
-	if (!user || !user.isVerified) return res.status(401).json({ Success: false, message: "Email not verified or user not found" });
+	if (!user || !user.isVerified) return res.status(401).json({ Success: false, message: "Account not verified or user not found" });
+	let isAuthenticated = false;
+	if (mode === 'pin') {
+		if (!pin) {
+			return res.status(400).json({ message: 'PIN is required for PIN login.' });
+		}
+		if (!user.pinHash || !user.pinSalt) {
+			return res.status(403).json({ message: 'PIN login not set up for this account.' });
+		}
+		isAuthenticated = await verifyPin(pin, user.pinHash, user.pinSalt);
+	} else {
+		if (!password) {
+			return res.status(400).json({ message: 'Password is required.' });
+		}
+		isAuthenticated = await validatePassword(password, user.hash, user.salt);
+	}
 
-	const isValid = await validatePassword(password, user.hash, user.salt);
-	if (!isValid) return res.status(403).json({ Success: false, message: "Invalid credentials" });
+	if (!isAuthenticated) return res.status(403).json({ Success: false, message: "Invalid credentials" });
 
 	const tokens = generateTokens(user);
 	const generatedAt = Date.now();
@@ -113,7 +140,7 @@ exports.login = catchAsync(async (req, res) => {
 });
 
 exports.forgotPassword = catchAsync(async (req, res) => {
-	const { email } = req.body;
+	const { email, mode = 'password' } = req.body;
 
 	const user = await User.findOne({ email });
 	if (!user) return res.status(404).json({ Status: false, message: "User not found" });
@@ -125,14 +152,22 @@ exports.forgotPassword = catchAsync(async (req, res) => {
 	user.otp = otpHash;
 	user.otpExpiresAt = otpExpiresAt;
 	await user.save();
-
-	await sendEmail(email, "Reset Your Password", `<p>Your OTP is <b>${otp}</b>. It will expire in 10 minutes.</p>`);
+	if (mode === 'password') {
+		await sendEmail(email, "Reset Your Password", `<p>Your OTP is <b>${otp}</b>. It will expire in 10 minutes.</p>`);
+	} else {
+		await sendEmail(email, "Reset Your Pin", `<p>Your OTP is <b>${otp}</b>. It will expire in 10 minutes.</p>`);
+	}
 	res.status(201).json({ Success: true, message: "OTP sent to your email" });
 });
 
 exports.resetPassword = catchAsync(async (req, res) => {
 	const { email, otp, newPassword, confirmNewPassword } = req.body;
+	const { isValid, message } = validatePasswordStrength(password);
 
+	if (!isValid) {
+		return res.status(400).json({ Success: false, message });
+	}
+	
 	if (newPassword !== confirmNewPassword)
 		return res.status(400).json({ Success: false, message: "Passwords do not match" });
 
@@ -171,3 +206,29 @@ exports.refreshToken = catchAsync(async (req, res) => {
 		return res.status(403).json({ success: false, message: 'Invalid or expired refresh token' });
 	}
 });
+
+exports.updatePin = catchAsync(async (req, res) => {
+	const { email, newPin, oldPin } = req.body;
+	if (!email) return res.status(400).json({ Success: false, message: "Email is required" });
+	const { isValid, message } = validatePin(pin);
+	if (!isValid) {
+		return res.status(400).json({ Success: false, message });
+	}
+	const user = await User.findOne({ email });
+	if (!user) return res.status(404).json({ Success: false, message: "User not found" });
+
+	const hashedInputOtp = hashOtp(otp);
+	const isOtpValid = user.otp === hashedInputOtp && new Date() < user.otpExpiresAt;
+	if (!isOtpValid) return res.status(400).json({ Success: false, message: "Invalid or expired OTP" });
+
+	if (user.pinHash && user.pinSalt) {
+		const isValid = await verifyPin(oldPin, user.pinHash, user.pinSalt);
+		if (!isValid) {
+			return res.status(401).json({ Success: false, message: "Current PIN is incorrect." });
+		}
+	}
+
+	const { hash: pinHash, salt: pinSalt } = await hashPin(newPin);
+	await user.updateOne({ userId }, { $set: { pinHash, pinSalt } });
+	return res.status(200).json({ status: 'Success', message: "PIN Updated successfully" });
+})

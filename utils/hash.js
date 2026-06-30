@@ -21,4 +21,15 @@ const validatePassword = async (password, storedHash, storedSalt) => {
     );
 };
 
-module.exports = { hashPassword, validatePassword };
+const hashPin = async (pin) => {
+    const salt = crypto.randomBytes(SALT_BYTES).toString('hex');
+    const hash = await pbkdf2Async(pin, salt, ITERATIONS, KEY_LENGTH, DIGEST);
+    return { salt, hash: hash.toString('hex') };
+}
+
+const verifyPin = async (pin, storedHash, storedSalt) => {
+    const hash = await pbkdf2Async(pin, storedSalt, ITERATIONS, KEY_LENGTH, DIGEST);
+    return crypto.timingSafeEqual(hash, Buffer.from(storedHash, 'hex'));
+}
+
+module.exports = { hashPassword, validatePassword, hashPin, verifyPin };
