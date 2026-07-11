@@ -16,6 +16,8 @@ router.post('/login', authController.login);
 router.post('/forgot-password', authController.forgotPassword);
 router.patch('/reset-password', authController.resetPassword);
 router.post('/refresh-token', authController.refreshToken);
-router.patch('/updatePin', authController.updatePin)
+router.patch('/updatePin', authController.updatePin);
+router.post('/setPin', authController.setPin);
+router.get('/getOTP', authController.generateOTPRequest);
 
 module.exports = router;

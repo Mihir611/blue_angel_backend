@@ -167,7 +167,7 @@ exports.resetPassword = catchAsync(async (req, res) => {
 	if (!isValid) {
 		return res.status(400).json({ Success: false, message });
 	}
-	
+
 	if (newPassword !== confirmNewPassword)
 		return res.status(400).json({ Success: false, message: "Passwords do not match" });
 
@@ -231,4 +231,45 @@ exports.updatePin = catchAsync(async (req, res) => {
 	const { hash: pinHash, salt: pinSalt } = await hashPin(newPin);
 	await user.updateOne({ userId }, { $set: { pinHash, pinSalt } });
 	return res.status(200).json({ status: 'Success', message: "PIN Updated successfully" });
+});
+
+exports.generateOTPRequest = catchAsync(async (req, res) => {
+	const { email } = req.body;
+
+	const user = await User.findOne({ email });
+	if (!user || user.isVerified) return res.status(400).send("Invalid request");
+
+	const otp = generateOtp();
+	const otpHash = hashOtp(otp);
+	const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+	user.otp = otpHash;
+	user.otpExpiresAt = otpExpiresAt;
+	await user.save();
+
+	await sendEmail(email, "Resend OTP", `<p>Your new OTP is <b>${otp}</b>.</p>`);
+	res.status(201).json({ Success: true, message: "OTP resent" });
+});
+
+exports.setPin = catchAsync(async (req, res) => {
+	const { email, newPin } = req.body;
+	if (!email) return res.status(400).json({ Success: false, message: "Email is required" });
+	const { isValid, message } = validatePin(newPin);
+	if (!isValid) {
+		return res.status(400).json({ Success: false, message });
+	}
+	const user = await User.findOne({ email });
+	if (!user) return res.status(404).json({ Success: false, message: "User not found" });
+
+	const hashedInputOtp = hashOtp(otp);
+	const isOtpValid = user.otp === hashedInputOtp && new Date() < user.otpExpiresAt;
+	if (!isOtpValid) return res.status(400).json({ Success: false, message: "Invalid or expired OTP" });
+
+	const { hash: pinHash, salt: pinSalt } = await hashPin(newPin)
+	user.pinHash = hash;
+	user.pinSalt = salt;
+	user.otp = null;
+	user.otpExpiresAt = null;
+	await user.save();
+	res.status(200).json({ Success: true, message: "Pin Created and Saved successfully" });
 })

@@ -16,6 +16,6 @@ const challanRateLimiter = rateLimit({
 });
 
 router.get('/getChallanDetails', authMiddleware.authenticateToken, challanRateLimiter, challanController.getChallans);
-router.post('/postCaptcha', authMiddleware.authenticateToken, challanRateLimiter, challanController.submitChallan);
+// router.post('/postCaptcha', authMiddleware.authenticateToken, challanRateLimiter, challanController.submitChallan);
 
 module.exports = router;
