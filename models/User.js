@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema({
   phone: String,
   hash: String,
   salt: String,
+  pinHash: String,
+  pinSalt: String,
   isVerified: { type: Boolean, default: false },
   refreshToken: String,
   otp: String, // hashed OTP
