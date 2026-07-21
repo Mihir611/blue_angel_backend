@@ -1,5 +1,7 @@
 const Bike = require('../models/Bikes');
+const MaintenanceRecord = require('../models/Maintainance');
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
+const { uploadServiceBillFiles, parseBillDate } = require('../services/BillUploader');
 const axios = require('axios');
 const { URL } = require('url');
 
@@ -399,6 +401,7 @@ exports.GetUserBikes = async (req, res) => {
 
         const bikes = await Bike.find({ owner: user.userId, bikeStatus: { $ne: 'sold' } }).sort({ createdAt: -1 });
         const formattedResponse = bikes.map(bike => ({
+            id: bike._id,
             bikeName: bike.bikeName,
             manufacturer: bike.manufacturer,
             model: bike.model,
@@ -529,5 +532,70 @@ exports.UpdateBikeStatus = async (req, res) => {
     } catch (err) {
         console.error('Error updating bike:', err);
         res.status(500).json({ success: false, message: 'Error updating bike' });
+    }
+}
+
+exports.CreateMaintenanceRecord = async (req, res) => {
+    try {
+        const { bikeName, serviceType, billDate, odometer, finalAmount, billNumber, notes, userEmail } = req.body;
+
+        if (!bikeName || !billDate) {
+            return res.status(400).json({ success: false, message: 'bikeName and serviceDate are required' });
+        }
+        const parsedBillDate = parseBillDate(billDate);
+        if (!parsedBillDate) {
+            return res.status(400).json({ success: false, message: 'billDate must be in DD-MM-YY format' });
+        }
+        const serviceBillFiles = req.files?.serviceBill || [];
+        const odometerFiles = req.files?.odometerImage || [];
+        const partsBillFiles = req.files?.partsBills || [];
+
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ message: 'At least one bill image is required' });
+        }
+
+        if (!userEmail) {
+            return res.status(400).json({ success: false, message: 'User email is required' });
+        }
+
+        const user = await getUserByEmail(userEmail);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        const userId = user.userId;
+        const bike = await Bike.findOne({ bikeName, owner: user.userId }).lean();
+        if (!bike) {
+            return res.status(404).json({ message: 'Bike not found for this user' });
+        }
+        const bikeId = bike._id;
+        const allFiles = [...serviceBillFiles, ...odometerFiles, ...partsBillFiles];
+        const uploadedFiles = await uploadServiceBillFiles({ files: allFiles, userId, bikeId, serviceDate: billDate, bikeName: bike.bikeName });
+        let cursor = 0;
+        const billImageUrls = uploadedFiles.slice(cursor, cursor += serviceBillFiles.length).map((f) => f.url);
+        const odometerImageUrl = odometerFiles.length
+            ? uploadedFiles.slice(cursor, cursor += odometerFiles.length)[0]?.url || null
+            : null;
+        const partsBillUrls = uploadedFiles.slice(cursor, cursor += partsBillFiles.length).map((f) => f.url);
+        const maintenanceRecord = new MaintenanceRecord({
+            userId,
+            bikeId,
+            serviceType,
+            serviceDate: parsedBillDate,
+            odometerReading: odometer,
+            cost: finalAmount,
+            billNumber,
+            billImageUrls,
+            odometerImageUrl,
+            partsBillUrls,
+            notes
+        });
+        await maintenanceRecord.save();
+        return res.status(201).json({ success: true, message: 'Maintenance record created' });
+    } catch (err) {
+        console.log('createMaintenanceRecord error:', err);
+        if (err.response) {
+            return res.status(502).json({ success: false, message: 'File storage service failed', detail: err.response.data });
+        }
+        return res.status(500).json({ success: false, message: 'Internal Server error' });
     }
 }
