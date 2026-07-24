@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema({
   otpExpiresAt: Date,
 
   // Profile fields
-  username: { type: String, unique: true },
+  username: { type: String, unique: true, sparse: true },
   firstname: String,
   lastname: String,
   bio: String,
