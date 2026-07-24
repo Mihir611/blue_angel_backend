@@ -7,5 +7,6 @@ router.get('/get-user', authMiddleware.authenticateToken, profileController.getP
 router.put('/update-user', authMiddleware.authenticateToken, profileController.updateProfile);
 router.put('/change-password', authMiddleware.authenticateToken, profileController.changePassword);
 router.get('/emergencyContact', authMiddleware.authenticateToken, profileController.getEmergencyContact);
+router.delete('/account', authMiddleware.authenticateToken, profileController.deleteAccount);
 
 module.exports = router;

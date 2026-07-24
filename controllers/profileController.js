@@ -1,6 +1,7 @@
 const Bikes = require('../models/Bikes');
 const User = require('../models/User');
 const Manual = require('../models/filesMaster');
+const MaintenanceRecord = require('../models/Maintainance');
 const { UserXp } = require('../models/achievementsMaster');
 const { hashPassword, validatePassword } = require('../utils/hash')
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
@@ -34,17 +35,17 @@ exports.getProfile = async (req, res) => {
 
 		// Guard against missing bike before querying manual
 		let userManual = null;
-        if (bike) {
-            userManual = await Manual.findOne({
-                manufacturer: bike.manufacturer,
-                variant: bike.variant,
-                model: bike.model,
-                yearStart: bike.year
-            }).lean();
-        }
+		if (bike) {
+			userManual = await Manual.findOne({
+				manufacturer: bike.manufacturer,
+				variant: bike.variant,
+				model: bike.model,
+				yearStart: bike.year
+			}).lean();
+		}
 
 		// Attach the fileUrl (or null if no manual found)
-        user.manualUrl = userManual ? userManual.fileUrl : null;
+		user.manualUrl = userManual ? userManual.fileUrl : null;
 
 		// Get the xp info for the user
 		const xpInfo = await UserXp.findOne({ user: user.userId });
@@ -190,5 +191,42 @@ exports.getEmergencyContact = async (req, res) => {
 	} catch (Error) {
 		console.log(Error);
 		return res.status(500).json({ success: false, message: 'Internal Server error' });
+	}
+}
+
+exports.deleteAccount = async (req, res) => {
+	const { email } = req.query;
+	const session = await mongoose.startSession();
+	if (!userEmail) {
+		return res.status(400).json({ success: false, message: 'UserEmail is required' });
+	}
+	try {
+		session.startTransaction();
+		const user = await getUserByEmail(email);
+		if (!user) {
+			return res.status(404).json({ success: false, message: 'User not found' });
+		}
+		const bikes = await Bikes.deleteMany({ userId }, { session });
+		const maintenanceRecords = await MaintenanceRecord.deleteMany({ userId }, { session });
+		const userStatus = await User.findOneAndDelete({ userId }, { session });
+		if (!deletedUser) {
+			await session.abortTransaction();
+			session.endSession();
+			return res.status(404).json({ message: 'User not found' });
+		}
+
+		await session.commitTransaction();
+		session.endSession();
+
+		return res.status(200).json({
+			message: 'Account and associated bikes deleted successfully',
+			deletedBikesCount: bikes.deletedCount,
+			deletedRecordsCount: maintenanceRecords.deletedCount
+		})
+	} catch (err) {
+		await session.abortTransaction();
+		session.endSession();
+		console.error('Error deleting account:', error);
+		return res.status(500).json({ message: 'Failed to delete account' });
 	}
 }
