@@ -1,3 +1,6 @@
+const { resolveDistrictForCity } = require("../utils/nominatium");
+const { resolveDistrictFromJSON } = require('../utils/locationIndex');
+
 exports.getPrice = async (req, res) => {
     const { city } = req.query;
     if (!city) {
@@ -5,8 +8,21 @@ exports.getPrice = async (req, res) => {
     }
 
     try {
+        let resolvedCity = await resolveDistrictForCity(city.trim());
+        let usedFalback = false;
+        if (!resolvedCity) {
+            resolvedCity = resolveDistrictFromJSON(cityName.trim());
+            usedFalback = true;
+        }
+        if (!resolvedCity) {
+            return res.status(404).json({
+                success: false,
+                error: `Could not resolve a district for "${cityName}".`,
+            });
+        }
+
         const url = new URL(`${process.env.SUPPORTING_APU_URL}fuel-price`);
-        url.searchParams.set("city", city.trim());
+        url.searchParams.set("city", resolvedCity);
         const response = await fetch(url.toString(), {
             signal: AbortSignal.timeout(10000),
         });
@@ -16,11 +32,11 @@ exports.getPrice = async (req, res) => {
         if (!response.ok || apiData.detail) {
             return res.status(404).json({
                 success: false,
-                error: data.detail || `No fuel price data found for "${city}".`,
+                error: apiData.detail || `No fuel price data found for "${city}".`,
             });
         }
 
-        const cityName = apiData.location;
+        const cityName = city.trim();
 
         // Extract numeric price from "₹102.36" → 102.36
         const rawPrice = apiData.price_per_litre ?? apiData.average_price_per_litre ?? null;
