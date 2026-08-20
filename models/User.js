@@ -29,6 +29,9 @@ const userSchema = new mongoose.Schema({
     contactNumber: { type: String }
   },
   userDeactivated: { type: Boolean, default: false },
+  role: { type: String, enum: ['User', 'communityAdmin', 'communityModerator', 'MotonomaadAdmin', 'MotonomaadStaff'], default: 'User' },
+  adminOfCommunityId: [{ type: String }],
+  moderatorOfCommunityIds: [{ type: String }],
 });
 
 module.exports = mongoose.model('User', userSchema);

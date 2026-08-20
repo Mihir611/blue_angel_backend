@@ -109,7 +109,7 @@ exports.resendOtp = catchAsync(async (req, res) => {
 });
 
 exports.login = catchAsync(async (req, res) => {
-	const { email, password, pin, mode = 'password' } = req.body;
+	const { email, password, pin, mode = 'password', context } = req.body;
 	if (!email) return res.status(400).json({ Success: false, message: "Email is required" });
 	const user = await User.findOne({ email });
 	if (!user || !user.isVerified) return res.status(401).json({ Success: false, message: "Account not verified or user not found" });
@@ -130,13 +130,46 @@ exports.login = catchAsync(async (req, res) => {
 	}
 
 	if (!isAuthenticated) return res.status(403).json({ Success: false, message: "Invalid credentials" });
+	if (user.userDeactivated) return res.status(403).json({ Success: false, message: "Account is deactivated" });
+	const ownerIds = (process.env.PLATFORM_OWNER_USER_IDS || '').split(',').map(id => id.trim());
+	const isPlatformOwner = ownerIds.includes(user.userIds)
+	const isStaff = ['CommunityAdmin', 'CommunityModerator'].includes(user.role);
 
+	let riderLevel = 1;
+	if (context === 'dashboard') {
+		if (!isPlatformOwner) {
+			const xpDoc = await UserXp.findOne({ user: user.userId }).lean();
+			riderLevel = xpDoc?.level || 1;
+
+			if (!isStaff && riderLevel < 10) {
+				return res.status(403).json({
+					Success: false,
+					message: `Dashboard access requires rider level 10. You are currently level ${riderLevel}.`
+				});
+			}
+		}
+	} else {
+		const xpDoc = await UserXp.findOne({ user: user.userId }).lean();
+		riderLevel = xpDoc?.level || 1;
+	}
 	const tokens = generateTokens(user);
 	const generatedAt = Date.now();
 	user.refreshToken = tokens.refreshToken;
 	await user.save();
 
-	res.status(200).json({ Success: true, tokens: { ...tokens, generatedAt }, user: { userId: user.userId, email: user.email } });
+	res.status(200).json({
+		Success: true,
+		tokens: { ...tokens, generatedAt },
+		user: {
+			userId: user.userId,
+			email: user.email,
+			role: user.role,
+			isPlatformOwner,
+			riderLevel,
+			...(user.role === 'communityAdmin' && { adminOfCommunityId: user.adminOfCommunityId }),
+			...(user.role === 'communityModerator' && { moderatorOfCommunityIds: user.moderatorOfCommunityIds }),
+		}
+	});
 });
 
 exports.forgotPassword = catchAsync(async (req, res) => {
@@ -272,4 +305,11 @@ exports.setPin = catchAsync(async (req, res) => {
 	user.otpExpiresAt = null;
 	await user.save();
 	res.status(200).json({ Success: true, message: "Pin Created and Saved successfully" });
+})
+
+exports.getUserInfo = catchAsync(async (req, res) => {
+	const { applicantId } = req.query
+	const user = await User.findOne({ userId: applicantId });
+	if (!user) return res.status(404).json({ Success: false, message: "User not found" });
+	res.status(200).json({ Success: true, data: { userName: user.username, contact: { email: user.email, phone: user.phone } }, message: 'Successfuly found the user details' });
 })
