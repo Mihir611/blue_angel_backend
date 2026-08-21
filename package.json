@@ -1,6 +1,6 @@
 {
   "name": "blue_angel",
-  "version": "10.7.0",
+  "version": "10.7.1",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -27,6 +27,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.6.1",
     "multer": "^2.1.1",
+    "nanoid": "^6.0.1",
     "nodemailer": "^8.0.7",
     "openai": "latest",
     "pdfjs-dist": "2.16.105",

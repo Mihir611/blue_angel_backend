@@ -2,7 +2,7 @@ const Events = require('../models/Events');
 const Sliders = require('../models/Sliders');
 const { updateExpiredEvents, updateExpiredSliders } = require('../utils/cleanEventsAndSliders');
 
-const getAllEvents = async () => {
+const getAllEventsFunction = async () => {
     try {
         let result = await updateExpiredEvents();
         if (result.success) {
@@ -14,15 +14,17 @@ const getAllEvents = async () => {
         const events = await Events.aggregate([
             { $match: { isActive: true } },            // Filter active events
             { $sample: { size: 5 } },                 // Pick 10 random events
-            { $project: {                              // Select only necessary fields
-                title: 1,
-                description: 1,
-                imageUrl: 1,
-                eventDate: 1,
-                location: 1,
-                category: 1,
-                price: 1
-            }}
+            {
+                $project: {                              // Select only necessary fields
+                    title: 1,
+                    description: 1,
+                    imageUrl: 1,
+                    eventDate: 1,
+                    location: 1,
+                    category: 1,
+                    price: 1
+                }
+            }
         ]);
 
         if (!events || events.length === 0) {
@@ -48,12 +50,14 @@ const getAllSliders = async () => {
         const sliders = await Sliders.aggregate([
             { $match: { isActive: true } },           // Filter active sliders
             { $sample: { size: 5 } },                  // Pick 5 random sliders
-            { $project: {                              // Select only necessary fields
-                title: 1,
-                description: 1,
-                imageUrl: 1,
-                link: 1
-            }}
+            {
+                $project: {                              // Select only necessary fields
+                    title: 1,
+                    description: 1,
+                    imageUrl: 1,
+                    link: 1
+                }
+            }
         ]);
 
         if (!sliders || sliders.length === 0) {
@@ -84,9 +88,9 @@ exports.createEvents = async (req, res) => {
     try {
         await Events.create({
             "location": {
-                "city": eventsData.city,
-                "state": eventsData.state,
-                "country": eventsData.country
+                "city": eventsData.location.city,
+                "state": eventsData.location.state,
+                "country": eventsData.location.country
             },
             "title": eventsData.title,
             "description": eventsData.description,
@@ -95,8 +99,8 @@ exports.createEvents = async (req, res) => {
             "category": eventsData.category,
             "price": parseInt(eventsData.price),
             "contactInfo": {
-                "email": eventsData.email,
-                "phone": eventsData.phone
+                "email": eventsData.contactInfo.email,
+                "phone": eventsData.contactInfo.phone
             },
             "tags": eventsData.tags,
             "isActive": eventsData.isActive,
@@ -218,7 +222,7 @@ exports.createSliders = async (req, res) => {
 
 exports.getHomePage = async (req, res) => {
     try {
-        const [eventsResult, slidersResult] = await Promise.all([getAllEvents(), getAllSliders()]);
+        const [eventsResult, slidersResult] = await Promise.all([getAllEventsFunction(), getAllSliders()]);
         res.json({
             events: {
                 success: eventsResult.success,
@@ -235,6 +239,15 @@ exports.getHomePage = async (req, res) => {
     catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Internal server error', error: err.message });
+    }
+}
+
+exports.getAllEvents = async (req, res) => {
+    try {
+        const eventsResult = await getAllEventsFunction();
+        res.status(200).json({ success: true, message: '', data: eventsResult.data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: `Internal Server Error, ${err.message}` })
     }
 }
 
@@ -273,7 +286,7 @@ exports.getEventSliders = async (req, res) => {
 
     try {
 
-        if(!id || !entryType) {
+        if (!id || !entryType) {
             return res.status(400).json({ success: false, message: 'ID and entry type are required' });
         }
 

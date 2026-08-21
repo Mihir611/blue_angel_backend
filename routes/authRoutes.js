@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const authMiddleware = require('../middleware/authMiddleware');
 const rateLimit = require('express-rate-limit');
 
 const otpLimiter = rateLimit({
@@ -19,5 +20,6 @@ router.post('/refresh-token', authController.refreshToken);
 router.patch('/updatePin', authController.updatePin);
 router.post('/setPin', authController.setPin);
 router.get('/getOTP', authController.generateOTPRequest);
+router.get('/user-det', authMiddleware.authenticateToken, authController.getUserInfo);
 
 module.exports = router;
