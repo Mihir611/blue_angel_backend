@@ -21,6 +21,8 @@ const waitlistRoutes = require('./routes/waitlistRoutes');
 const challanRoutes = require('./routes/challansRoutes');
 const achievementRoutes = require('./routes/achievementRoutes');
 const manualRoutes = require('./routes/fileRoutes');
+const communityRoutes = require('./routes/communityRoutes');
+const bloodRoutes = require('./routes/bloodRoutes');
 
 const helmet = require('helmet');
 const cors = require('cors');
@@ -70,6 +72,8 @@ app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/challan', challanRoutes);
 app.use('/api/achievements', achievementRoutes);
 app.use('/api/manual', manualRoutes);
+app.use('/api/communities', communityRoutes);
+app.use('/api/blood', bloodRoutes);
 
 app.get('/', (req, res) => {
     res.json({
