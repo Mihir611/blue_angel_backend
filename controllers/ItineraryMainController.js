@@ -8,10 +8,17 @@ const { generateMultipleTravelItineraries } = require('../utils/gpthelper-openRo
 const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 const Bikes = require('../models/Bikes');
 const { ExpiryHandelerForItineraries } = require('../utils/itineraryExpiryHandler');
+const axios = require('axios');
 
+const POLL_INTERVAL_MS = 15000;   // 15s between polls
+const MAX_POLL_ATTEMPTS = 40;
 /* -------------------------------------------------------------------------- */
 /*  Normalisers                                                                */
 /* -------------------------------------------------------------------------- */
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 function buildBookingInfo(raw) {
     if (!raw || raw === false) return null;
@@ -42,7 +49,7 @@ function normaliseActivity(act) {
     if (typeof act === 'string') {
         return {
             time: '09:00', title: act.trim() || 'Activity', description: '',
-            location: '', duration_minutes: 60, entry_fee: 'Free',
+            location: '', lat: null, lon: null, duration_minutes: 60, entry_fee: 'Free',
             booking_required: false, booking_info: null
         };
     }
@@ -50,11 +57,20 @@ function normaliseActivity(act) {
     const bookingRequired = Boolean(act.bk?.req ?? act.booking_required ?? false);
     const bookingRaw = act.bk ?? act.booking_info ?? null;
 
+    // ItinerarySchema stores lat/lon as String (default ''), not Number. The AI service
+    // sometimes returns null lat/lon (e.g. multi-city "ride back" days) — those become
+    // '' rather than the string "null", so the field stays a clean empty string.
+    const rawLat = act.lat;
+    const rawLon = act.lon;
+    const toLatLonString = (val) => (val === null || val === undefined || val === '') ? '' : String(val).trim();
+
     return {
         time: String(act.tm ?? act.time ?? '09:00').trim(),
         title: String(act.n ?? act.title ?? 'Activity').trim() || 'Activity',
         description: String(act.desc ?? act.description ?? '').trim(),
         location: String(act.loc ?? act.location ?? '').trim(),
+        lat: toLatLonString(rawLat),
+        lon: toLatLonString(rawLon),
         duration_minutes: Math.max(0, Number(act.dur ?? act.duration_minutes ?? 60) || 60),
         entry_fee: String(act.fee ?? act.entry_fee ?? 'Free').trim(),
         booking_required: bookingRequired,
@@ -63,9 +79,17 @@ function normaliseActivity(act) {
 }
 
 function normaliseDay(d, idx) {
+    // Prefer the real date the AI service assigned to this day; only fall back to a
+    // computed offset if it's missing/unparseable. Previously this always recomputed
+    // from Date.now(), silently discarding the actual trip dates.
+    const providedDate = d.date ? new Date(d.date) : null;
+    const date = providedDate && !isNaN(providedDate.getTime())
+        ? providedDate
+        : new Date(Date.now() + idx * 86_400_000);
+
     return {
         day: Math.max(1, Number(d.d ?? d.day ?? idx + 1) || idx + 1),
-        date: new Date(Date.now() + idx * 86_400_000),
+        date,
         title: String(d.t ?? d.title ?? `Day ${idx + 1}`).trim(),
         route: String(d.r ?? d.route ?? '').trim(),
         distance: String(d.distance ?? '').trim(),
@@ -73,11 +97,12 @@ function normaliseDay(d, idx) {
         meals: String(d.meal ?? d.meals ?? '').trim(),
         budget: String(d.db ?? d.budget ?? '').trim(),
         highlights: Array.isArray(d.highlights) ? d.highlights.map(String) : [],
-        activities: (d.acts ?? d.activities ?? []).map(normaliseActivity)
+        activities: (d.acts ?? d.activities ?? []).map(normaliseActivity),
+        riderNotes: String(d.riderNotes ?? '').trim()
     };
 }
 
-function normaliseMeta(raw) {
+function normaliseMeta(raw = {}) {
     const ov = raw.ov ?? raw.overview ?? {};
     return {
         title: String(raw.title ?? '').trim(),
@@ -94,14 +119,75 @@ function normaliseMeta(raw) {
     };
 }
 
+/**
+ * The Motonomaad job result shape is:
+ *   result.itineraries = [
+ *     { theme, themeId, themeTitle, style, variant, maxKmPerDay, document: { rideSource, rideDestination, days, meta, _id } },
+ *     ...
+ *   ]
+ * i.e. one entry per (theme x variant), NOT a single itinerary. This maps one entry
+ * into the shape Itinerary.create() expects.
+ *
+ * NOTE: entry.theme/themeId/themeTitle/style/variant/maxKmPerDay/document._id are
+ * intentionally NOT persisted here — ItinerarySchema has no fields for them, so they
+ * were being silently dropped by Mongoose anyway. meta.theme (a plain string) already
+ * carries the theme name. If you later want to distinguish/query variants (e.g. "give
+ * me the challenging Goa itinerary"), add matching fields to ItinerarySchema and
+ * reintroduce them here.
+ */
+function normaliseItineraryVariant(entry, fallbackSource, fallbackDestination, requestId) {
+    const doc = entry.document ?? {};
+    const rawDays = doc.days ?? doc.d ?? [];
+
+    return {
+        request_id: requestId,
+        rideSource: doc.rideSource || fallbackSource,
+        rideDestination: doc.rideDestination || fallbackDestination,
+        days: rawDays.map(normaliseDay),
+        meta: normaliseMeta(doc.meta)
+    };
+}
+
+async function getItinerary(payload) {
+    try {
+        const response = await axios.post(process.env.SUPPORTING_APU_URL + 'itinerary', payload);
+        return { success: true, data: response }
+    } catch (apiError) {
+        return { success: false, error: apiError.response?.data || apiError.message };
+    }
+}
+
+async function pollMotonomaadJob(jobId, pollUrl) {
+    const url = pollUrl && pollUrl.startsWith('http')
+        ? pollUrl
+        : `${process.env.SUPPORTING_APU_URL}itinerary/${jobId}`;
+
+    for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+        const { data } = await axios.get(url);
+
+        if (data.status === 'completed') {
+            return { success: true, data };
+        }
+        if (data.status === 'failed') {
+            return { success: false, error: data.error || data.message || 'Motonomaad job failed' };
+        }
+
+        console.log(`Motonomaad job ${jobId}: status=${data.status}, attempt ${attempt}/${MAX_POLL_ATTEMPTS}`);
+        await sleep(POLL_INTERVAL_MS);
+    }
+
+    return {
+        success: false,
+        error: `Motonomaad job ${jobId} did not complete within ${(MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS) / 1000}s`
+    };
+}
 /* -------------------------------------------------------------------------- */
 /*  Controller                                                                 */
 /* -------------------------------------------------------------------------- */
 
 exports.createItineraryRequest = async (req, res) => {
     try {
-        const { userEmail, rideType, rideSource, rideDestination, rideDuration, locationPreferences } = req.body;
-
+        const { userEmail, rideType, rideSource, rideDestination, rideDuration, locationPreferences, maxKmPerDay } = req.body;
         if (!userEmail || !rideType || !rideSource || !rideDestination || !rideDuration) {
             return res.status(400).json({
                 success: false,
@@ -136,11 +222,41 @@ exports.createItineraryRequest = async (req, res) => {
             itinerary_id: null, status: 'processing'
         });
 
-        const aiResult = await generateMultipleTravelItineraries({
-            source: rideSource, destination: rideDestination, days: rideDuration,
-            travelMode: rideType, preferences: locationPreferences ? [locationPreferences] : [],
-            numItineraries: 3
-        });
+        const payload = {
+            source: rideSource,
+            destination: rideDestination,
+            trip_days: Number(rideDuration),
+            max_km_per_day: maxKmPerDay ? Number(maxKmPerDay) : (rideType === 'group' ? 200 : 300),
+            ride_type: rideType,
+            place_type: ['well-known', 'off-beat'].includes(locationPreferences) ? locationPreferences : 'well-known',
+            buffer_km: 20,
+            places_per_day: 4,
+            one_way: false,
+            country_bias: 'in',
+            start_date: '2026-08-27',
+            rich: true,
+            themes: "default",
+            variant: 0,
+            variants_per_theme: 2,
+        }
+
+        const queueResponse = await getItinerary(payload);
+        if (!queueResponse.success) {
+            await ItineraryRequest.findByIdAndUpdate(itineraryRequest._id, { status: 'failed' });
+            await Master.findByIdAndUpdate(masterRecord._id, { status: 'failed' });
+            return res.status(502).json({
+                success: false, message: 'Failed to queue itinerary generation',
+                error: queueResponse.error, request_id: itineraryRequest._id
+            });
+        }
+
+        const { job_id, poll_url } = queueResponse.data.data;
+        if (!job_id) {
+            throw new Error('Motonomaad API did not return a job_id');
+        }
+
+        console.log(`Motonomaad job queued: ${job_id}, polling every ${POLL_INTERVAL_MS / 1000}s...`);
+        const aiResult = await pollMotonomaadJob(job_id, poll_url);
 
         if (!aiResult.success) {
             await ItineraryRequest.findByIdAndUpdate(itineraryRequest._id, { status: 'failed' });
@@ -151,47 +267,83 @@ exports.createItineraryRequest = async (req, res) => {
             });
         }
 
-        const generatedList = aiResult.data?.itineraries?.itineraries ?? [];
-        const savedItineraries = [];
+        // aiResult.data is the *whole* polled job document:
+        // { job_id, status, created_at, updated_at, progress, request, result: { itineraries: [...], errors: [...] } }
+        const jobResult = aiResult.data?.result ?? {};
+        const itineraryVariants = Array.isArray(jobResult.itineraries) ? jobResult.itineraries : [];
 
-        for (const raw of generatedList) {
-            const rawDays = raw.days ?? raw.d ?? [];
-            const hasDays = Array.isArray(rawDays) && rawDays.length > 0;
-
-            if (raw.error && !hasDays) {
-                console.warn(`⚠️  Skipping itinerary "${raw.title}" – no day data:`, raw.error);
-                continue;
-            }
-
-            const saved = await Itinerary.create({
-                request_id: itineraryRequest._id,
-                rideSource,
-                rideDestination,
-                days: rawDays.map(normaliseDay),
-                meta: normaliseMeta(raw)
+        if (itineraryVariants.length === 0) {
+            await ItineraryRequest.findByIdAndUpdate(itineraryRequest._id, { status: 'failed' });
+            await Master.findByIdAndUpdate(masterRecord._id, { status: 'failed' });
+            return res.status(502).json({
+                success: false,
+                message: 'Motonomaad returned no itineraries',
+                error: jobResult.errors?.length ? jobResult.errors : 'No itineraries in result',
+                request_id: itineraryRequest._id
             });
+        }
 
-            savedItineraries.push(saved);
+        // Save each theme/variant as its own Itinerary doc, tolerating partial failures
+        // the same way the rest of this codebase does (Promise.allSettled + 207).
+        const saveOutcomes = await Promise.allSettled(
+            itineraryVariants.map(entry =>
+                Itinerary.create(
+                    normaliseItineraryVariant(entry, rideSource, rideDestination, itineraryRequest._id)
+                )
+            )
+        );
+
+        const savedItineraries = [];
+        const saveErrors = [];
+
+        saveOutcomes.forEach((outcome, i) => {
+            if (outcome.status === 'fulfilled') {
+                savedItineraries.push(outcome.value);
+            } else {
+                const failedEntry = itineraryVariants[i];
+                console.error(
+                    `Failed to save itinerary variant ${i} (${failedEntry?.themeTitle}/${failedEntry?.variant}):`,
+                    outcome.reason
+                );
+                saveErrors.push({
+                    theme: failedEntry?.theme,
+                    themeTitle: failedEntry?.themeTitle,
+                    variant: failedEntry?.variant,
+                    error: outcome.reason?.message || String(outcome.reason)
+                });
+            }
+        });
+
+        if (savedItineraries.length === 0) {
+            await ItineraryRequest.findByIdAndUpdate(itineraryRequest._id, { status: 'failed' });
+            await Master.findByIdAndUpdate(masterRecord._id, { status: 'failed' });
+            return res.status(500).json({
+                success: false, message: 'All itinerary variants failed to save',
+                errors: saveErrors, request_id: itineraryRequest._id
+            });
         }
 
         await ItineraryRequest.findByIdAndUpdate(itineraryRequest._id, { status: 'completed' });
+        await Master.findByIdAndUpdate(masterRecord._id, {
+            itinerary_id: savedItineraries[0]._id,          // kept for backward compatibility with existing readers
+            itinerary_ids: savedItineraries.map(i => i._id), // NOTE: add this field to ItineraryMaster schema to persist it
+            status: 'completed'
+        });
 
-        if (savedItineraries.length > 0) {
-            await Master.findByIdAndUpdate(masterRecord._id, {
-                itinerary_id: savedItineraries[0]._id, status: 'completed'
-            });
-        } else {
-            await Master.findByIdAndUpdate(masterRecord._id, { status: 'failed' });
-        }
-
-        return res.status(201).json({
+        const responseStatus = saveErrors.length > 0 ? 207 : 201;
+        return res.status(responseStatus).json({
             success: true,
-            message: `${savedItineraries.length} itinerary(s) generated successfully`,
+            message: `${savedItineraries.length}/${itineraryVariants.length} itinerary variant(s) generated successfully`,
             data: {
                 request: itineraryRequest,
                 master: await Master.findById(masterRecord._id),
                 itineraries: savedItineraries,
-                parseInfo: aiResult.data?.parseInfo ?? {}
+                failed: saveErrors,
+                jobMeta: {
+                    job_id,
+                    count: jobResult.count,
+                    errors: jobResult.errors ?? []
+                }
             }
         });
 

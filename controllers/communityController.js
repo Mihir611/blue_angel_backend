@@ -3,6 +3,7 @@ const joinRequests = require('../models/ClubJoinRequests');
 const CommunityApplication = require('../models/communityApplication');
 const User = require('../models/User');
 const { UserXp } = require('../models/achievementsMaster');
+const { nanoid } = require('nanoid');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -246,7 +247,7 @@ exports.getApplications = async (req, res) => {
         if (applications.length === 0) {
             return res.status(204).json({ Success: true, message: 'No pending application', data: {} })
         }
-        return res.status(200).json({ Success: true, data: {applications}, message: 'Here are some applications to review' });
+        return res.status(200).json({ Success: true, data: { applications }, message: 'Here are some applications to review' });
     } catch (error) {
         console.error(error);
 
