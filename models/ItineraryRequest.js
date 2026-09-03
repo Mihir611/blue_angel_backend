@@ -38,7 +38,9 @@ const itineraryRequestSchema = new mongoose.Schema(
             type: String,
             enum: ['pending', 'processing', 'completed', 'failed'],
             default: 'pending'
-        }
+        },
+        job_id: {type: String, default: null},
+        poll_url: {type: String, default: null}
     },
     {
         timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
