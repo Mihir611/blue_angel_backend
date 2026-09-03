@@ -32,6 +32,7 @@ router.post('/request', authMiddleware.authenticateToken, ItineraryController.cr
 router.get('/getItineraries', authMiddleware.authenticateToken, ItineraryController.getItineraries);
 router.get('/getItinerary', authMiddleware.authenticateToken, ItineraryController.getItineraryById);
 router.get('/requests', authMiddleware.authenticateToken, ItineraryController.getRequestsByUser);
+router.get('/request/:id/status', authMiddleware.authenticateToken, ItineraryController.getItineraryRequestStatus);
 router.post('/selectItineraries', authMiddleware.authenticateToken, ItineraryController.markItitnerariesAsSelected);
 
 module.exports = router;
