@@ -10,4 +10,5 @@ router.get('/Event',authMiddleware.authenticateToken, homeController.getEventByI
 router.get('/Slider', authMiddleware.authenticateToken, homeController.getSliderById);
 router.get('/FindEventSliders', authMiddleware.authenticateToken, homeController.getEventSliders);
 router.get('/getEvents', authMiddleware.authenticateToken, homeController.getAllEvents);
+router.get('/mechanics', authMiddleware.authenticateToken, homeController.getMechanics);
 module.exports = router;

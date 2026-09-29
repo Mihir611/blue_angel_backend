@@ -2,6 +2,9 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const RiderStats = require('../models/RiderStats');
 const { UserXp } = require('../models/achievementsMaster');
+const CommunityMembership = require('../models/membershipSchema');
+const Vehicle = require('../models/Bikes');
+const Challan = require('../models/challansMaster');
 const { hashPassword, validatePassword, verifyPin, hashPin } = require('../utils/hash');
 const sendEmail = require('../utils/sendEmail');
 const { generateOtp, hashOtp } = require('../utils/otp');
@@ -152,6 +155,9 @@ exports.login = catchAsync(async (req, res) => {
 		const xpDoc = await UserXp.findOne({ user: user.userId }).lean();
 		riderLevel = xpDoc?.level || 1;
 	}
+	const joinedCommunities = await CommunityMembership.find({ userId: user.userId });
+	const vehicles = await Vehicle.countDocuments({ owner: user.userId });
+	const hasBikesAdded = vehicles > 0;
 	const tokens = generateTokens(user);
 	const generatedAt = Date.now();
 	user.refreshToken = tokens.refreshToken;
@@ -165,6 +171,8 @@ exports.login = catchAsync(async (req, res) => {
 			email: user.email,
 			role: user.role,
 			isPlatformOwner,
+			joinedCommunities,
+			hasBikesAdded,
 			riderLevel,
 			...(user.role === 'communityAdmin' && { adminOfCommunityId: user.adminOfCommunityId }),
 			...(user.role === 'communityModerator' && { moderatorOfCommunityIds: user.moderatorOfCommunityIds }),
@@ -173,8 +181,7 @@ exports.login = catchAsync(async (req, res) => {
 });
 
 exports.forgotPassword = catchAsync(async (req, res) => {
-	const { email, mode = 'password' } = req.body;
-
+	const { email, mode = 'password' } = req.query;
 	const user = await User.findOne({ email });
 	if (!user) return res.status(404).json({ Status: false, message: "User not found" });
 
@@ -194,15 +201,18 @@ exports.forgotPassword = catchAsync(async (req, res) => {
 });
 
 exports.resetPassword = catchAsync(async (req, res) => {
-	const { email, otp, newPassword, confirmNewPassword } = req.body;
+	const { email, mode } = req.query;
+	const { otp, password } = req.body;
+	if (!email || !otp || !password) {
+		return res.status(400).json({
+			Success: false,
+			message: 'Email, otp, and password are required',
+		});
+	}
 	const { isValid, message } = validatePasswordStrength(password);
-
 	if (!isValid) {
 		return res.status(400).json({ Success: false, message });
 	}
-
-	if (newPassword !== confirmNewPassword)
-		return res.status(400).json({ Success: false, message: "Passwords do not match" });
 
 	const user = await User.findOne({ email });
 	if (!user) return res.status(404).json({ Success: false, message: "User not found" });
@@ -211,7 +221,7 @@ exports.resetPassword = catchAsync(async (req, res) => {
 	const isOtpValid = user.otp === hashedInputOtp && new Date() < user.otpExpiresAt;
 	if (!isOtpValid) return res.status(400).json({ Success: false, message: "Invalid or expired OTP" });
 
-	const { hash, salt } = hashPassword(newPassword);
+	const { hash, salt } = await hashPassword(password);
 	user.hash = hash;
 	user.salt = salt;
 	user.otp = null;
@@ -312,4 +322,47 @@ exports.getUserInfo = catchAsync(async (req, res) => {
 	const user = await User.findOne({ userId: applicantId });
 	if (!user) return res.status(404).json({ Success: false, message: "User not found" });
 	res.status(200).json({ Success: true, data: { userName: user.username, contact: { email: user.email, phone: user.phone } }, message: 'Successfuly found the user details' });
+})
+
+exports.deleteAccount = catchAsync(async (req, res) => {
+	const { userEmail } = req.query;
+	const user = await User.findOne({ email: userEmail });
+	if (!user) return res.status(404).json({ Success: false, message: "User not found" });
+
+	const otp = generateOtp();
+	const otpHash = hashOtp(otp);
+	const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+	user.otp = otpHash;
+	user.otpExpiresAt = otpExpiresAt;
+	await user.save();
+	await sendEmail(user.email, "Confirm Account Deletion", `<p>Your OTP to permanently delete your Motonomaad account is <b>${otp}</b>. It expires in 10 minutes. If you didn't request this, ignore this email.</p>`);
+
+	res.status(200).json({ Success: true, message: "OTP sent to your registered email to confirm account deletion" });
+});
+
+exports.confirmAccountDeletion = catchAsync(async (req, res) => {
+	const { userEmail } = req.query;
+	const { otp } = req.body
+	const user = await User.findOne({ email: userEmail });
+	if (!user) return res.status(404).json({ Success: false, message: "User not found" });
+	const userId = user.userId;
+	if (!otp) return res.status(400).json({ Success: false, message: "OTP is required" });
+	const hashedInputOtp = hashOtp(otp);
+	const isOtpValid = user.otp === hashedInputOtp && user.otpExpiresAt && new Date() < user.otpExpiresAt;
+	if (!isOtpValid) return res.status(400).json({ Success: false, message: "Invalid or expired OTP" });
+	user.otp = undefined;
+	user.otpExpiresAt = undefined;
+	user.deletionRequestedAt = new Date();
+	user.status = "pending_deletion";
+	await user.save();
+	await Promise.all([
+		Vehicle.deleteMany({ owner: userId }),
+		RiderStats.deleteMany({ user: userId }),
+		UserXp.deleteMany({ user: userId }),
+		CommunityMembership.deleteMany({ userId }),
+		Challan.deleteMany({ userId }),
+	]);
+
+	await User.deleteOne({ userId });
+	res.status(200).json({ Success: true, message: "Account and all associated data deleted successfully" });
 })

@@ -7,7 +7,7 @@ function isDisposableEmail(email) {
 
 const validatePasswordStrength = (password) => {
   const errors = [];
-
+  console.log(password.length)
   if (password.length < 10) errors.push('at least 10 characters');
   if (!/[A-Z]/.test(password)) errors.push('one uppercase letter');
   if (!/[a-z]/.test(password)) errors.push('one lowercase letter');
