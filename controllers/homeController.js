@@ -1,6 +1,7 @@
 const Events = require('../models/Events');
 const Sliders = require('../models/Sliders');
 const { updateExpiredEvents, updateExpiredSliders } = require('../utils/cleanEventsAndSliders');
+const { supportingApiClient } = require('../utils/piAxiosConfigs');
 
 const getAllEventsFunction = async () => {
     try {
@@ -306,5 +307,45 @@ exports.getEventSliders = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    }
+}
+
+exports.getMechanics = async (req, res) => {
+    try {
+        const { cityName, lat, long, type, ratingGoogle, ratingUser } = req.query;
+
+        if (!cityName) {
+            return res.status(400).json({ Success: false, message: 'cityName is required', data: {} })
+        }
+
+        const response = await supportingApiClient.get(`/districts/${encodeURIComponent(cityName)}`, { params: { type, min_google_rating: ratingGoogle, min_user_rating: ratingUser } })
+        const { places = [] } = response.data || {};
+
+        res.status(200).json({
+            Success: true,
+            message: 'Mechanics fetched successfully',
+            data: {
+                state: response.data.state,
+                district: response.data.district,
+                place_count: response.data.place_count,
+                places
+            }
+        })
+    } catch (error) {
+        console.error('getMechanics error:', error.message);
+
+        if (error.response) {
+            return res.status(error.response.status).json({
+                Success: false,
+                message: error.response.data?.message || 'Failed to fetch mechanics from supporting API',
+                data: {}
+            });
+        }
+
+        res.status(500).json({
+            Success: false,
+            message: 'Something went wrong while fetching mechanics',
+            data: {}
+        });
     }
 }

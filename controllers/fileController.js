@@ -28,12 +28,18 @@ exports.createManual = async (req, res) => {
 
         let validationResult;
         try {
-            validationResult = await validatePDFWithAI(uploadedFile.buffer, {
-                manufacturer, model, variant, yearStart, yearEnd
-            });
+            validationResult = await validatePDFWithAI(
+                uploadedFile.buffer,
+                uploadedFile.originalname,
+                manufacturer,          // make
+                model
+            );
         } catch (err) {
-            console.log('AI validation error:', err.message);
-            return res.status(400).json({ success: false, message: 'Unable to validate PDF contents' });
+            console.log("PDF validation error:", err.message);
+            return res.status(400).json({
+                success: false,
+                message: "Unable to validate PDF contents",
+            });
         }
 
         if (!validationResult.isValid || validationResult.score < 60) {
@@ -48,14 +54,13 @@ exports.createManual = async (req, res) => {
         const form = new FormData();
 
         form.append('file', uploadedFile.buffer, uploadedFile.originalname);
-        const uploadResponse = await axios.post(process.env.SUPPORTING_FILE_APU_URL + 'upload?tag=manual', form, {
+        const uploadResponse = await axios.post(process.env.SUPPORTING_FILE_APU_URL + 'upload?tags=manual', form, {
             headers: {
                 ...form.getHeaders(),
                 'X-API-KEY': process.env.IPFS_API_KEY
             },
             maxBodyLength: Infinity
         });
-
         const file = uploadResponse.data;
 
         //save the metadata

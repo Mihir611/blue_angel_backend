@@ -1,8 +1,10 @@
 const CommunityMaster = require('../models/CommunityMaster');
 const joinRequests = require('../models/ClubJoinRequests');
+const CommunityMembership = require('../models/membershipSchema')
 const CommunityApplication = require('../models/communityApplication');
 const User = require('../models/User');
 const { UserXp } = require('../models/achievementsMaster');
+const { getUserByEmail } = require('../utils/getUserDetailsHelper');
 const { nanoid } = require('nanoid');
 
 const DEFAULT_PAGE = 1;
@@ -67,6 +69,7 @@ exports.getCommunity = async (req, res) => {
 
         res.status(200).json({ Success: true, results: communities.length, total, page, totalPages: Math.ceil(total / limit), data: { communities } });
     } catch (err) {
+        console.log(err)
         res.status(500).json({ Success: false, message: err.message });
     }
 }
@@ -336,5 +339,55 @@ exports.ReviewApplication = async (req, res) => {
     } catch (err) {
         console.error(err);
         return res.status(500).json({ Success: false, message: 'Failed to review application' });
+    }
+}
+
+exports.CommunityJoin = async (req, res) => {
+    try {
+        const { id: communityId } = req.params
+        const { userEmail } = req.body;
+        if (!userEmail || !communityId) {
+            return res.status(400).json({ Success: false, message: 'user info and communityId are required' });
+        }
+
+        const user = await getUserByEmail(userEmail);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        let userId = user.userId
+        const community = await CommunityMaster.findOne({ _id: communityId });
+        if (!community) {
+            return res.status(404).json({ Success: false, message: 'Community not found' });
+        }
+        const existingMembership = await CommunityMembership.findOne({ userId, communityId });
+        if (existingMembership) {
+            if (existingMembership.status === 'Active') {
+                return res.status(409).json({ Success: false, message: 'You are already a member of this community' });
+            }
+            if (existingMembership.status === 'Removed') {
+                return res.status(403).json({ Success: false, message: 'You have been removed from this community' });
+            }
+            // status === 'Left' -> reactivate instead of creating a duplicate doc
+            existingMembership.status = 'Active';
+            existingMembership.roleInCommunity = 'Member';
+            existingMembership.joinedAt = new Date();
+            await existingMembership.save();
+            return res.status(200).json({ Success: true, message: 'Rejoined community successfully' });
+        }
+
+        const membership = await CommunityMembership.create({
+            userId,
+            communityId,
+            roleInCommunity: 'Member',
+            status: 'Active'
+        });
+        return res.status(201).json({ Success: true, message: 'Joined community successfully', data: membership });
+    } catch (err) {
+        // Race condition fallback - unique index (userId + communityId) is the atomic source of truth
+        if (err.code === 11000) {
+            return res.status(409).json({ Success: false, message: 'You are already a member of this community' });
+        }
+        console.error('CommunityJoin error:', err);
+        return res.status(500).json({ Success: false, message: 'Something went wrong while joining the community' });
     }
 }
